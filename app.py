@@ -108,24 +108,6 @@ st.markdown("""
         border-color: var(--gold);
     }
 
-    /* Buttons */
-    .stDownloadButton > button {
-        background: var(--navy) !important;
-        color: #FFFFFF !important;
-        border: 2px solid var(--navy) !important;
-        border-radius: 6px;
-        font-family: 'DM Sans', sans-serif;
-        font-weight: 600;
-        letter-spacing: 0.04em;
-        padding: 0.5rem 2rem;
-        transition: all 0.2s;
-    }
-    .stDownloadButton > button:hover {
-        background: transparent !important;
-        color: var(--navy) !important;
-        border-color: var(--navy) !important;
-    }
-
     /* Status expander */
     [data-testid="stStatus"] {
         background: #FFFFFF;
@@ -280,13 +262,6 @@ if tab_names == ["+ Upload New"]:
 
         components.html(html_output, height=800, scrolling=True)
 
-        st.download_button(
-            label="Download HTML",
-            data=html_output,
-            file_name=f"{config.slug}-menu.html",
-            mime="text/html",
-        )
-
 else:
     # Show tabs for saved menus + upload
     tabs = st.tabs(tab_names)
@@ -297,19 +272,9 @@ else:
             html_content = path.read_text(encoding="utf-8")
             components.html(html_content, height=800, scrolling=True)
 
-            col1, col2 = st.columns([1, 5])
-            with col1:
-                st.download_button(
-                    label="Download HTML",
-                    data=html_content,
-                    file_name=path.name,
-                    mime="text/html",
-                    key=f"dl_{name}",
-                )
-            with col2:
-                if st.button(f"Delete", key=f"del_{name}", type="secondary"):
-                    path.unlink()
-                    st.rerun()
+            if st.button("Delete", key=f"del_{name}", type="secondary"):
+                path.unlink()
+                st.rerun()
 
     # Upload tab
     with tabs[-1]:
@@ -371,13 +336,5 @@ else:
                 status.update(label="Done!", state="complete")
 
             components.html(html_output, height=800, scrolling=True)
-
-            st.download_button(
-                label="Download HTML",
-                data=html_output,
-                file_name=f"{config.slug}-menu.html",
-                mime="text/html",
-                key="dl_new",
-            )
 
             st.info("Menu saved! Refresh to see it in the tabs above.")
