@@ -109,7 +109,7 @@ st.markdown("""
         border-bottom: 2px solid var(--gold) !important;
         background: transparent !important;
     }
-    .stTabs [data-baseweb="tab-panel"] { padding: 1rem 0; }
+    .stTabs [data-baseweb="tab-panel"] { padding: 0; }
 
     /* Subtle delete button — right-aligned below preview */
     .delete-row {
