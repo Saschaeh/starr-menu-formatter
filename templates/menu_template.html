@@ -1,438 +1,362 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ restaurant.name }} — Menu CMS Preview</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            --navy: #1B2A4A;
-            --gold: #C5A55A;
-            --gold-light: #F7F3EA;
-            --cream: #F5F3EF;
-            --text: #1B2A4A;
-            --text-muted: #6B7280;
-            --border: #DDD9D1;
-            --bg: #FFFFFF;
-            --accent: {{ restaurant.accent_color }};
-            --accent-light: {{ restaurant.accent_light }};
-        }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ restaurant.name }} — Menu CMS Preview</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f7f5f0;
+    --surface: #ffffff;
+    --text: #1a1a1a;
+    --text-muted: #6b6560;
+    --accent: {{ restaurant.accent_color }};
+    --accent-light: #d4a574;
+    --border: #e0dbd4;
+    --tag-bg: #eee8df;
+    --supplement: #c17b2a;
+    --col-gap: 28px;
+    --section-gap: 28px;
+  }
 
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
 
-        body {
-            font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
-            color: var(--text);
-            background: var(--cream);
-            line-height: 1.5;
-        }
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
 
-        .menu-container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 0;
-        }
+  .page-header {
+    background: var(--text);
+    color: var(--bg);
+    padding: 32px 48px 24px;
+  }
+  .page-header h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: 28px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+  }
+  .page-header p {
+    font-size: 13px;
+    color: #a09888;
+    margin-top: 6px;
+  }
 
-        /* Header Bar */
-        .restaurant-header {
-            background: var(--navy);
-            border-top: 4px solid var(--gold);
-            border-bottom: 4px solid var(--gold);
-            padding: 1.5rem 2.5rem;
-            margin-bottom: 0;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
+  .tabs-bar {
+    background: var(--text);
+    padding: 0 48px;
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid #333;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .tab-btn {
+    background: none;
+    border: none;
+    color: #a09888;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    padding: 14px 24px;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+  }
+  .tab-btn:hover { color: var(--bg); }
+  .tab-btn.active {
+    color: var(--bg);
+    border-bottom-color: var(--accent-light);
+  }
 
-        .restaurant-name {
-            font-family: 'Playfair Display', Georgia, serif;
-            font-size: 1.75rem;
-            font-weight: 700;
-            color: #FFFFFF;
-            letter-spacing: 0.02em;
-        }
+  .tab-description {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 48px;
+    font-size: 13px;
+    color: var(--text-muted);
+    font-style: italic;
+  }
 
-        .restaurant-subtitle {
-            font-family: 'DM Sans', sans-serif;
-            color: var(--gold);
-            font-size: 0.8rem;
-            font-weight: 500;
-            letter-spacing: 0.12em;
-            text-transform: uppercase;
-            margin-top: 0.2rem;
-        }
+  .tab-content { display: none; padding: 32px 48px 48px; }
+  .tab-content.active { display: block; }
 
-        /* Tab Navigation */
-        .tab-nav {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0;
-            background: var(--bg);
-            border-bottom: 1px solid var(--border);
-            padding: 0 1.5rem;
-        }
+  .columns {
+    display: grid;
+    gap: var(--col-gap);
+    align-items: start;
+  }
+  .columns-1 { grid-template-columns: 1fr; max-width: 600px; }
+  .columns-2 { grid-template-columns: 1fr 1fr; }
+  .columns-3 { grid-template-columns: 1fr 1fr 1fr; }
 
-        .tab-btn {
-            padding: 0.875rem 1.5rem;
-            border: none;
-            background: none;
-            color: var(--text-muted);
-            font-family: 'DM Sans', sans-serif;
-            font-size: 0.8rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.1em;
-            cursor: pointer;
-            border-bottom: 3px solid transparent;
-            margin-bottom: -1px;
-            transition: color 0.2s, border-color 0.2s;
-        }
+  .column {
+    background: var(--surface);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    padding: 24px;
+  }
 
-        .tab-btn:hover {
-            color: var(--navy);
-        }
+  .column-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--accent-light);
+    margin-bottom: 20px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
 
-        .tab-btn.active {
-            color: var(--navy);
-            border-bottom-color: var(--gold);
-        }
+  .menu-section { margin-bottom: var(--section-gap); }
+  .menu-section:last-child { margin-bottom: 0; }
 
-        /* Tab Panels */
-        .tab-panel {
-            display: none;
-        }
+  .section-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--accent);
+    margin-bottom: 14px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+  }
 
-        .tab-panel.active {
-            display: block;
-        }
+  .section-note {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-style: italic;
+    margin-bottom: 12px;
+    line-height: 1.6;
+  }
 
-        .tab-content {
-            background: var(--bg);
-            padding: 1.5rem 2rem 2rem;
-            margin: 0;
-        }
+  .menu-item {
+    margin-bottom: 12px;
+    padding-bottom: 12px;
+    border-bottom: 1px dotted #e8e4dd;
+  }
+  .menu-item:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
 
-        .tab-header {
-            text-align: center;
-            margin-bottom: 1.5rem;
-        }
+  .item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+  }
+  .item-name {
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--text);
+  }
+  .item-name .raw-marker {
+    color: var(--accent);
+    font-weight: 400;
+    margin-left: 1px;
+  }
+  .item-price {
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--text);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .item-supplement {
+    color: var(--supplement);
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .item-desc {
+    font-size: 12.5px;
+    color: var(--text-muted);
+    margin-top: 3px;
+    line-height: 1.5;
+  }
+  .item-tags {
+    margin-top: 4px;
+    display: flex;
+    gap: 5px;
+    flex-wrap: wrap;
+  }
+  .tag {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    padding: 2px 7px;
+    border-radius: 3px;
+    background: var(--tag-bg);
+    color: var(--text-muted);
+  }
 
-        .tab-description {
-            color: var(--text-muted);
-            font-size: 0.9rem;
-            font-style: italic;
-        }
+  .footnotes {
+    margin-top: 32px;
+    padding: 16px 24px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.7;
+  }
+  .footnotes strong { color: var(--text); }
 
-        /* Column Grid */
-        .columns-grid {
-            display: grid;
-            gap: 2.5rem;
-        }
+  .copy-hint {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--accent);
+    color: white;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    padding: 6px 14px;
+    border-radius: 4px;
+    cursor: pointer;
+    border: none;
+    margin-bottom: 16px;
+    transition: background 0.2s;
+  }
+  .copy-hint:hover { opacity: 0.85; }
+  .copy-hint.copied { background: #2e6b3e; }
 
-        .columns-1 { grid-template-columns: 1fr; max-width: 600px; margin: 0 auto; }
-        .columns-2 { grid-template-columns: 1fr 1fr; }
-        .columns-3 { grid-template-columns: 1fr 1fr 1fr; }
-
-        .column {
-            position: relative;
-        }
-
-        .column-label {
-            font-size: 0.65rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.12em;
-            color: var(--gold);
-            margin-bottom: 0.75rem;
-            text-align: center;
-        }
-
-        /* Sections */
-        .section {
-            margin-bottom: 1.75rem;
-        }
-
-        .section-title {
-            font-family: 'Playfair Display', Georgia, serif;
-            font-size: 1.1rem;
-            font-weight: 700;
-            color: var(--navy);
-            text-transform: uppercase;
-            letter-spacing: 0.06em;
-            padding-bottom: 0.375rem;
-            border-bottom: 2px solid var(--gold);
-            margin-bottom: 0.5rem;
-        }
-
-        .section-note {
-            font-size: 0.8rem;
-            color: var(--text-muted);
-            font-style: italic;
-            margin-bottom: 0.5rem;
-        }
-
-        /* Menu Items */
-        .menu-item {
-            padding: 0.35rem 0;
-            border-bottom: 1px solid #F0EDE7;
-        }
-
-        .menu-item:last-child {
-            border-bottom: none;
-        }
-
-        .item-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: baseline;
-            gap: 0.5rem;
-        }
-
-        .item-name {
-            font-weight: 600;
-            font-size: 0.9rem;
-            flex: 1;
-            color: var(--navy);
-        }
-
-        .item-raw {
-            color: #C0392B;
-            font-weight: 700;
-        }
-
-        .item-price {
-            font-weight: 600;
-            font-size: 0.85rem;
-            white-space: nowrap;
-            color: var(--navy);
-        }
-
-        .item-supplement {
-            color: var(--gold);
-            font-weight: 700;
-            font-size: 0.8rem;
-            white-space: nowrap;
-        }
-
-        .item-description {
-            font-size: 0.8rem;
-            color: var(--text-muted);
-            margin-top: 0.1rem;
-        }
-
-        .item-tags {
-            display: flex;
-            gap: 0.25rem;
-            margin-top: 0.25rem;
-            flex-wrap: wrap;
-        }
-
-        .tag {
-            font-size: 0.6rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            padding: 0.1rem 0.4rem;
-            border-radius: 9999px;
-            background: var(--gold-light);
-            color: var(--gold);
-            border: 1px solid var(--gold);
-        }
-
-        /* Footnote */
-        .tab-footnote {
-            margin-top: 2rem;
-            padding-top: 1rem;
-            border-top: 1px solid var(--border);
-            font-size: 0.75rem;
-            color: var(--text-muted);
-            font-style: italic;
-            text-align: center;
-        }
-
-        /* Copy Button */
-        .copy-btn-wrapper {
-            text-align: right;
-            margin-bottom: 1rem;
-        }
-
-        .copy-btn {
-            padding: 0.45rem 1.25rem;
-            border: 2px solid var(--navy);
-            border-radius: 4px;
-            background: var(--bg);
-            color: var(--navy);
-            font-family: 'DM Sans', sans-serif;
-            font-size: 0.75rem;
-            font-weight: 600;
-            letter-spacing: 0.04em;
-            text-transform: uppercase;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .copy-btn:hover {
-            background: var(--navy);
-            color: #FFFFFF;
-        }
-
-        .copy-btn.copied {
-            background: #2D6A4F;
-            border-color: #2D6A4F;
-            color: #FFFFFF;
-        }
-
-        /* Responsive */
-        @media (max-width: 768px) {
-            .columns-2, .columns-3 { grid-template-columns: 1fr; }
-            .restaurant-name { font-size: 1.4rem; }
-            .tab-content { padding: 1rem; }
-            .restaurant-header { padding: 1.25rem 1rem; }
-        }
-    </style>
+  @media (max-width: 1100px) {
+    .columns { grid-template-columns: 1fr; }
+    .tabs-bar, .page-header, .tab-content, .tab-description { padding-left: 24px; padding-right: 24px; }
+  }
+</style>
 </head>
 <body>
-    <div class="menu-container">
-        <div class="restaurant-header">
-            <div>
-                <h1 class="restaurant-name">{{ restaurant.name }}</h1>
-                <div class="restaurant-subtitle">Menu Content Preview</div>
-            </div>
-        </div>
 
-        {% if restaurant.tabs | length > 1 %}
-        <nav class="tab-nav">
-            {% for tab in restaurant.tabs %}
-            <button class="tab-btn{% if loop.first %} active{% endif %}"
-                    data-tab="{{ tab.id }}"
-                    onclick="switchTab('{{ tab.id }}')">
-                {{ tab.label }}
-            </button>
-            {% endfor %}
-        </nav>
+<div class="page-header">
+  <h1>{{ restaurant.name }}</h1>
+  <p>Menu CMS Preview — structured for copy-paste into website columns &amp; tabs</p>
+</div>
+
+{% if restaurant.tabs | length > 1 %}
+<div class="tabs-bar" id="tabsBar">
+  {% for tab in restaurant.tabs %}
+  <button class="tab-btn{% if loop.first %} active{% endif %}" data-tab="{{ tab.id }}">{{ tab.label }}</button>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% for tab in restaurant.tabs %}
+<div class="tab-content{% if loop.first %} active{% endif %}" id="{{ tab.id }}">
+  {% if tab.description %}
+  <div class="tab-description">{{ tab.description }}</div>
+  {% endif %}
+
+  <button class="copy-hint" onclick="copyTab('{{ tab.id }}')">&#x29C9; Copy entire tab as text</button>
+
+  <div class="columns columns-{{ tab.columns | length }}">
+    {% for column in tab.columns %}
+    <div class="column">
+      <div class="column-label">Column {{ loop.index }}</div>
+
+      {% for section in column.sections %}
+      <div class="menu-section">
+        <div class="section-title">{{ section.title }}</div>
+        {% if section.note %}
+        <div class="section-note">{{ section.note }}</div>
         {% endif %}
 
-        {% for tab in restaurant.tabs %}
-        <div class="tab-panel{% if loop.first %} active{% endif %}" id="panel-{{ tab.id }}">
-            <div class="tab-content">
-
-                <div class="copy-btn-wrapper">
-                    <button class="copy-btn" onclick="copyTab('{{ tab.id }}')">Copy for CMS</button>
-                </div>
-
-                {% if tab.description %}
-                <div class="tab-header">
-                    <p class="tab-description">{{ tab.description }}</p>
-                </div>
-                {% endif %}
-
-                <div class="columns-grid columns-{{ tab.columns | length }}">
-                    {% for column in tab.columns %}
-                    <div class="column">
-                        {% if tab.columns | length > 1 %}
-                        <div class="column-label">Column {{ loop.index }}</div>
-                        {% endif %}
-
-                        {% for section in column.sections %}
-                        <div class="section" data-tab="{{ tab.id }}">
-                            <h3 class="section-title">{{ section.title }}</h3>
-                            {% if section.note %}
-                            <p class="section-note">{{ section.note }}</p>
-                            {% endif %}
-
-                            {% for item in section.items %}
-                            <div class="menu-item">
-                                <div class="item-header">
-                                    <span class="item-name">
-                                        {{ item.name }}{% if item.raw %}<span class="item-raw">*</span>{% endif %}
-                                    </span>
-                                    {% if item.supplement %}
-                                    <span class="item-supplement">{{ item.supplement }}</span>
-                                    {% endif %}
-                                    {% if item.price %}
-                                    <span class="item-price">{{ item.price }}</span>
-                                    {% endif %}
-                                </div>
-                                {% if item.description %}
-                                <p class="item-description">{{ item.description }}</p>
-                                {% endif %}
-                                {% if item.tags %}
-                                <div class="item-tags">
-                                    {% for tag in item.tags %}
-                                    <span class="tag">{{ tag }}</span>
-                                    {% endfor %}
-                                </div>
-                                {% endif %}
-                            </div>
-                            {% endfor %}
-                        </div>
-                        {% endfor %}
-                    </div>
-                    {% endfor %}
-                </div>
-
-                {% if tab.footnote %}
-                <div class="tab-footnote">{{ tab.footnote }}</div>
-                {% endif %}
-            </div>
+        {% for item in section.items %}
+        <div class="menu-item">
+          <div class="item-header">
+            <span class="item-name">{{ item.name }}{% if item.raw %}<span class="raw-marker">*</span>{% endif %}</span>
+            {% if item.supplement %}
+            <span class="item-supplement">{{ item.supplement }}</span>
+            {% endif %}
+            {% if item.price %}
+            <span class="item-price">{{ item.price }}</span>
+            {% endif %}
+          </div>
+          {% if item.description %}
+          <div class="item-desc">{{ item.description }}</div>
+          {% endif %}
+          {% if item.tags %}
+          <div class="item-tags">
+            {% for tag in item.tags %}
+            <span class="tag">{{ tag }}</span>
+            {% endfor %}
+          </div>
+          {% endif %}
         </div>
         {% endfor %}
+      </div>
+      {% endfor %}
     </div>
+    {% endfor %}
+  </div>
 
-    <script>
-        function switchTab(tabId) {
-            document.querySelectorAll('.tab-btn').forEach(btn => {
-                btn.classList.toggle('active', btn.dataset.tab === tabId);
-            });
-            document.querySelectorAll('.tab-panel').forEach(panel => {
-                panel.classList.toggle('active', panel.id === 'panel-' + tabId);
-            });
-        }
+  {% if tab.footnote %}
+  <div class="footnotes">
+    <strong>*</strong> {{ tab.footnote }}
+  </div>
+  {% endif %}
+</div>
+{% endfor %}
 
-        function copyTab(tabId) {
-            const panel = document.getElementById('panel-' + tabId);
-            if (!panel) return;
+<script>
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById(btn.dataset.tab).classList.add('active');
+    });
+  });
 
-            const lines = [];
-            const sections = panel.querySelectorAll('.section[data-tab="' + tabId + '"]');
+  function copyTab(tabId) {
+    const tab = document.getElementById(tabId);
+    const columns = tab.querySelectorAll('.column');
+    let text = '';
 
-            sections.forEach((section, si) => {
-                const title = section.querySelector('.section-title');
-                if (title) lines.push(title.textContent.trim());
+    columns.forEach((col, i) => {
+      text += `=== COLUMN ${i + 1} ===\n\n`;
+      col.querySelectorAll('.menu-section').forEach(sec => {
+        const title = sec.querySelector('.section-title')?.textContent?.trim();
+        if (title && title !== '\u00a0') text += `[${title}]\n`;
+        const note = sec.querySelector('.section-note')?.textContent?.trim();
+        if (note) text += `${note}\n`;
+        sec.querySelectorAll('.menu-item').forEach(item => {
+          const name = item.querySelector('.item-name')?.textContent?.trim() || '';
+          const price = item.querySelector('.item-price')?.textContent?.trim() || '';
+          const supp = item.querySelector('.item-supplement')?.textContent?.trim() || '';
+          const desc = item.querySelector('.item-desc')?.textContent?.trim() || '';
+          const tags = Array.from(item.querySelectorAll('.tag')).map(t => t.textContent.trim());
+          let line = name;
+          if (price) line += ` — ${price}`;
+          if (supp) line += ` (${supp})`;
+          text += line + '\n';
+          if (desc) text += `  ${desc}\n`;
+          if (tags.length) text += `  [${tags.join(', ')}]\n`;
+        });
+        text += '\n';
+      });
+    });
 
-                const note = section.querySelector('.section-note');
-                if (note) lines.push(note.textContent.trim());
+    const footnotes = tab.querySelector('.footnotes')?.textContent?.trim();
+    if (footnotes) text += `---\n${footnotes}\n`;
 
-                section.querySelectorAll('.menu-item').forEach(item => {
-                    const name = item.querySelector('.item-name');
-                    const price = item.querySelector('.item-price');
-                    const supplement = item.querySelector('.item-supplement');
-                    const desc = item.querySelector('.item-description');
+    navigator.clipboard.writeText(text).then(() => {
+      const btn = tab.querySelector('.copy-hint');
+      btn.textContent = '\u2713 Copied!';
+      btn.classList.add('copied');
+      setTimeout(() => {
+        btn.textContent = '\u29C9 Copy entire tab as text';
+        btn.classList.remove('copied');
+      }, 2000);
+    });
+  }
+</script>
 
-                    let line = name ? name.textContent.trim() : '';
-                    if (supplement) line += '  ' + supplement.textContent.trim();
-                    if (price) line += '  ' + price.textContent.trim();
-                    lines.push(line);
-                    if (desc) lines.push(desc.textContent.trim());
-                });
-
-                if (si < sections.length - 1) lines.push('');
-            });
-
-            navigator.clipboard.writeText(lines.join('\n')).then(() => {
-                const btn = panel.querySelector('.copy-btn');
-                btn.textContent = 'Copied!';
-                btn.classList.add('copied');
-                setTimeout(() => {
-                    btn.textContent = 'Copy for CMS';
-                    btn.classList.remove('copied');
-                }, 2000);
-            });
-        }
-    </script>
 </body>
 </html>
