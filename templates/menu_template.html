@@ -207,25 +207,6 @@
   }
   .footnotes strong { color: var(--text); }
 
-  .copy-hint {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    background: var(--accent);
-    color: white;
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.5px;
-    padding: 6px 14px;
-    border-radius: 4px;
-    cursor: pointer;
-    border: none;
-    margin-bottom: 16px;
-    transition: background 0.2s;
-  }
-  .copy-hint:hover { opacity: 0.85; }
-  .copy-hint.copied { background: #2e6b3e; }
-
   @media (max-width: 1100px) {
     .columns { grid-template-columns: 1fr; }
     .tabs-bar, .page-header, .tab-content, .tab-description { padding-left: 24px; padding-right: 24px; }
@@ -252,8 +233,6 @@
   {% if tab.description %}
   <div class="tab-description">{{ tab.description }}</div>
   {% endif %}
-
-  <button class="copy-hint" onclick="copyTab('{{ tab.id }}')">&#x29C9; Copy entire tab as text</button>
 
   <div class="columns columns-{{ tab.columns | length }}">
     {% for column in tab.columns %}
@@ -314,48 +293,6 @@
     });
   });
 
-  function copyTab(tabId) {
-    const tab = document.getElementById(tabId);
-    const columns = tab.querySelectorAll('.column');
-    let text = '';
-
-    columns.forEach((col, i) => {
-      text += `=== COLUMN ${i + 1} ===\n\n`;
-      col.querySelectorAll('.menu-section').forEach(sec => {
-        const title = sec.querySelector('.section-title')?.textContent?.trim();
-        if (title && title !== '\u00a0') text += `[${title}]\n`;
-        const note = sec.querySelector('.section-note')?.textContent?.trim();
-        if (note) text += `${note}\n`;
-        sec.querySelectorAll('.menu-item').forEach(item => {
-          const name = item.querySelector('.item-name')?.textContent?.trim() || '';
-          const price = item.querySelector('.item-price')?.textContent?.trim() || '';
-          const supp = item.querySelector('.item-supplement')?.textContent?.trim() || '';
-          const desc = item.querySelector('.item-desc')?.textContent?.trim() || '';
-          const tags = Array.from(item.querySelectorAll('.tag')).map(t => t.textContent.trim());
-          let line = name;
-          if (price) line += ` — ${price}`;
-          if (supp) line += ` (${supp})`;
-          text += line + '\n';
-          if (desc) text += `  ${desc}\n`;
-          if (tags.length) text += `  [${tags.join(', ')}]\n`;
-        });
-        text += '\n';
-      });
-    });
-
-    const footnotes = tab.querySelector('.footnotes')?.textContent?.trim();
-    if (footnotes) text += `---\n${footnotes}\n`;
-
-    navigator.clipboard.writeText(text).then(() => {
-      const btn = tab.querySelector('.copy-hint');
-      btn.textContent = '\u2713 Copied!';
-      btn.classList.add('copied');
-      setTimeout(() => {
-        btn.textContent = '\u29C9 Copy entire tab as text';
-        btn.classList.remove('copied');
-      }, 2000);
-    });
-  }
 </script>
 
 </body>
