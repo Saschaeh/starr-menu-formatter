@@ -111,33 +111,24 @@ st.markdown("""
     }
     .stTabs [data-baseweb="tab-panel"] { padding: 1rem 0; }
 
-    .menu-banner {
-        background: var(--navy);
-        color: #FFFFFF;
-        padding: 0.6rem 1.25rem;
-        border-radius: 8px 8px 0 0;
+    /* Subtle delete button — right-aligned below preview */
+    .delete-row {
         display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 0;
+        justify-content: flex-end;
+        margin-top: 0.5rem;
     }
-    .menu-banner .menu-name {
-        font-family: 'Playfair Display', Georgia, serif;
-        font-size: 1rem;
-        font-weight: 600;
-    }
-    /* Subtle delete button styling */
     .stTabs [data-baseweb="tab-panel"] button[kind="secondary"] {
         background: transparent;
-        border: 1px solid var(--border-light);
+        border: none;
         color: var(--text-muted);
+        font-family: 'DM Sans', sans-serif;
         font-size: 0.75rem;
-        padding: 0.25rem 0.75rem;
-        margin-top: 0.3rem;
+        padding: 0.25rem 0;
+        opacity: 0.5;
     }
     .stTabs [data-baseweb="tab-panel"] button[kind="secondary"]:hover {
         color: #dc3545;
-        border-color: #dc3545;
+        opacity: 1;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -226,26 +217,20 @@ def _process_upload(file_bytes: bytes, filename: str) -> None:
 
 # --- Main UI ---
 saved_menus = _get_saved_menus()
-tab_names = list(saved_menus.keys()) + ["+ Upload New"]
+tab_names = list(saved_menus.keys()) + ["Upload"]
 tabs = st.tabs(tab_names)
 
 # Saved menu tabs
 for i, (name, path) in enumerate(saved_menus.items()):
     with tabs[i]:
-        col_title, col_del = st.columns([9, 1])
-        with col_title:
-            st.markdown(f"""
-            <div class="menu-banner">
-                <span class="menu-name">{name}</span>
-            </div>
-            """, unsafe_allow_html=True)
-        with col_del:
-            if st.button("Delete", key=f"del_{name}", type="secondary"):
-                path.unlink()
-                st.rerun()
-
         html_content = path.read_text(encoding="utf-8")
         components.html(html_content, height=800, scrolling=True)
+
+        _, col_del = st.columns([9, 1])
+        with col_del:
+            if st.button("Delete this menu", key=f"del_{name}", type="secondary"):
+                path.unlink()
+                st.rerun()
 
 # Upload tab
 with tabs[-1]:
