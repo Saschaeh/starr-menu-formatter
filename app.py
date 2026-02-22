@@ -101,49 +101,6 @@ st.markdown("""
         border-color: var(--gold);
     }
 
-    /* Summary table */
-    .summary-table {
-        width: 100%;
-        border-collapse: collapse;
-        font-family: 'DM Sans', sans-serif;
-        background: #FFFFFF;
-        border-radius: 8px;
-        overflow: hidden;
-        border: 1px solid var(--border-light);
-        box-shadow: 0 1px 3px rgba(27,42,74,0.06);
-    }
-    .summary-table th {
-        background: var(--navy);
-        color: #FFFFFF;
-        font-size: 0.75rem;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-        padding: 0.75rem 1rem;
-        text-align: left;
-    }
-    .summary-table td {
-        padding: 0.6rem 1rem;
-        font-size: 0.875rem;
-        color: var(--navy);
-        border-bottom: 1px solid #F0EDE7;
-    }
-    .summary-table tr:last-child td {
-        border-bottom: none;
-    }
-    .summary-table tr:hover td {
-        background: #FAFAF7;
-    }
-    .summary-table .count {
-        font-weight: 700;
-        font-family: 'Playfair Display', Georgia, serif;
-    }
-    .summary-table .total-row td {
-        background: var(--cream);
-        font-weight: 700;
-        border-top: 2px solid var(--gold);
-    }
-
     /* Buttons */
     .stDownloadButton > button {
         background: var(--navy) !important;
@@ -258,43 +215,6 @@ if uploaded_file is not None:
         html_output = render_html(restaurant)
 
         status.update(label="Done!", state="complete")
-
-    # --- Summary Table ---
-    st.markdown('<div class="section-heading">Results Summary</div><hr class="gold-rule">', unsafe_allow_html=True)
-
-    total_items = 0
-    total_sections = 0
-    rows_html = ""
-    for tab in restaurant.tabs:
-        tab_items = sum(len(sec.items) for col in tab.columns for sec in col.sections)
-        tab_sections = sum(len(col.sections) for col in tab.columns)
-        tab_cols = len(tab.columns)
-        total_items += tab_items
-        total_sections += tab_sections
-        rows_html += f"""<tr>
-            <td>{tab.label}</td>
-            <td class="count">{tab_items}</td>
-            <td>{tab_sections}</td>
-            <td>{tab_cols}</td>
-        </tr>"""
-
-    rows_html += f"""<tr class="total-row">
-        <td>Total ({len(restaurant.tabs)} tabs)</td>
-        <td class="count">{total_items}</td>
-        <td>{total_sections}</td>
-        <td>&mdash;</td>
-    </tr>"""
-
-    st.markdown(f"""
-    <table class="summary-table">
-        <thead>
-            <tr><th>Tab</th><th>Items</th><th>Sections</th><th>Columns</th></tr>
-        </thead>
-        <tbody>{rows_html}</tbody>
-    </table>
-    """, unsafe_allow_html=True)
-
-    st.markdown("<br>", unsafe_allow_html=True)
 
     # --- HTML Preview ---
     st.markdown('<div class="section-heading">Menu Preview</div><hr class="gold-rule">', unsafe_allow_html=True)
