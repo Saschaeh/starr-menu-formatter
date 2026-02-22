@@ -1,5 +1,9 @@
 """Starr Menu CMS Formatter — Streamlit App."""
 
+import json
+import os
+from pathlib import Path
+
 import streamlit as st
 import streamlit.components.v1 as components
 
@@ -8,6 +12,9 @@ from src.restaurant_config import detect_restaurant
 from src.llm_client import parse_menu
 from src.column_balancer import balance_menu
 from src.html_renderer import render_html
+
+OUTPUTS_DIR = Path(__file__).parent / "outputs"
+OUTPUTS_DIR.mkdir(exist_ok=True)
 
 # --- Page Config ---
 st.set_page_config(
@@ -136,6 +143,36 @@ st.markdown("""
         font-family: 'Playfair Display', Georgia, serif;
         color: var(--navy);
     }
+
+    /* Streamlit tabs styling */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 0;
+        background: var(--navy);
+        padding: 0 1rem;
+        border-radius: 8px 8px 0 0;
+    }
+    .stTabs [data-baseweb="tab"] {
+        font-family: 'DM Sans', sans-serif;
+        font-size: 0.8rem;
+        font-weight: 600;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        color: #a09888;
+        padding: 0.75rem 1.25rem;
+        border: none;
+        background: transparent;
+    }
+    .stTabs [data-baseweb="tab"]:hover {
+        color: #FFFFFF;
+    }
+    .stTabs [aria-selected="true"] {
+        color: #FFFFFF !important;
+        border-bottom: 2px solid var(--gold) !important;
+        background: transparent !important;
+    }
+    .stTabs [data-baseweb="tab-panel"] {
+        padding: 1rem 0;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -158,72 +195,189 @@ try:
 except Exception:
     api_key = None
 
-# --- Upload Section ---
-st.markdown('<div class="section-heading">Upload Menu Document</div><hr class="gold-rule">', unsafe_allow_html=True)
 
-uploaded_file = st.file_uploader(
-    "Drop a .docx menu file here",
-    type=["docx"],
-    label_visibility="collapsed",
-)
+# --- Helper: load saved menus ---
+def _get_saved_menus() -> dict[str, Path]:
+    """Return {display_name: path} for saved HTML files in outputs/."""
+    menus = {}
+    for f in sorted(OUTPUTS_DIR.glob("*.html")):
+        # Turn slug into display name: "makoto-menu.html" → "Makoto"
+        name = f.stem.replace("-menu", "").replace("-", " ").title()
+        menus[name] = f
+    return menus
 
-if uploaded_file is not None:
-    file_bytes = uploaded_file.read()
-    filename = uploaded_file.name
 
-    with st.status("Processing menu...", expanded=True) as status:
-        st.write("Extracting text from document...")
-        raw_text = extract_text(file_bytes)
+def _save_menu(slug: str, html: str) -> None:
+    """Save processed HTML to outputs/."""
+    path = OUTPUTS_DIR / f"{slug}-menu.html"
+    path.write_text(html, encoding="utf-8")
 
-        st.write("Filtering menu content...")
-        filtered_text = filter_menu_content(raw_text)
 
-        st.write("Detecting restaurant...")
-        config = detect_restaurant(filename, raw_text)
-        st.write(f"Detected: **{config.name}**")
+# --- Build tab list ---
+saved_menus = _get_saved_menus()
+tab_names = list(saved_menus.keys()) + ["+ Upload New"]
 
-        # Progress callback for per-tab parsing
-        status_placeholder = st.empty()
+if tab_names == ["+ Upload New"]:
+    # No saved menus yet — just show upload
+    st.markdown('<div class="section-heading">Upload Menu Document</div><hr class="gold-rule">', unsafe_allow_html=True)
 
-        def on_progress(tab_name, index, total):
-            status_placeholder.write(f"Parsing tab {index}/{total}: **{tab_name}**...")
+    uploaded_file = st.file_uploader(
+        "Drop a .docx menu file here",
+        type=["docx"],
+        label_visibility="collapsed",
+    )
 
-        try:
-            parsed_menu, raw_json = parse_menu(
-                filtered_text,
-                model=model_id,
-                api_key=api_key if api_key else None,
-                on_progress=on_progress,
+    if uploaded_file is not None:
+        file_bytes = uploaded_file.read()
+        filename = uploaded_file.name
+
+        with st.status("Processing menu...", expanded=True) as status:
+            st.write("Extracting text from document...")
+            raw_text = extract_text(file_bytes)
+
+            st.write("Filtering menu content...")
+            filtered_text = filter_menu_content(raw_text)
+
+            st.write("Detecting restaurant...")
+            config = detect_restaurant(filename, raw_text)
+            st.write(f"Detected: **{config.name}**")
+
+            status_placeholder = st.empty()
+
+            def on_progress(tab_name, index, total):
+                status_placeholder.write(f"Parsing tab {index}/{total}: **{tab_name}**...")
+
+            try:
+                parsed_menu, raw_json = parse_menu(
+                    filtered_text,
+                    model=model_id,
+                    api_key=api_key if api_key else None,
+                    on_progress=on_progress,
+                )
+            except Exception as e:
+                status.update(label="Error", state="error")
+                st.error(f"API Error: {e}")
+                st.stop()
+
+            status_placeholder.empty()
+
+            st.write("Balancing columns...")
+            restaurant = balance_menu(
+                parsed_menu,
+                restaurant_name=config.name,
+                slug=config.slug,
+                accent_color=config.accent_color,
+                accent_light=config.accent_light,
             )
-        except Exception as e:
-            status.update(label="Error", state="error")
-            st.error(f"API Error: {e}")
-            st.stop()
 
-        status_placeholder.empty()
+            st.write("Rendering HTML preview...")
+            html_output = render_html(restaurant)
 
-        st.write("Balancing columns...")
-        restaurant = balance_menu(
-            parsed_menu,
-            restaurant_name=config.name,
-            slug=config.slug,
-            accent_color=config.accent_color,
-            accent_light=config.accent_light,
+            # Save to outputs/
+            _save_menu(config.slug, html_output)
+
+            status.update(label="Done!", state="complete")
+
+        components.html(html_output, height=800, scrolling=True)
+
+        st.download_button(
+            label="Download HTML",
+            data=html_output,
+            file_name=f"{config.slug}-menu.html",
+            mime="text/html",
         )
 
-        st.write("Rendering HTML preview...")
-        html_output = render_html(restaurant)
+else:
+    # Show tabs for saved menus + upload
+    tabs = st.tabs(tab_names)
 
-        status.update(label="Done!", state="complete")
+    # Saved menu tabs
+    for i, (name, path) in enumerate(saved_menus.items()):
+        with tabs[i]:
+            html_content = path.read_text(encoding="utf-8")
+            components.html(html_content, height=800, scrolling=True)
 
-    # --- HTML Preview ---
-    st.markdown('<div class="section-heading">Menu Preview</div><hr class="gold-rule">', unsafe_allow_html=True)
-    components.html(html_output, height=800, scrolling=True)
+            col1, col2 = st.columns([1, 5])
+            with col1:
+                st.download_button(
+                    label="Download HTML",
+                    data=html_content,
+                    file_name=path.name,
+                    mime="text/html",
+                    key=f"dl_{name}",
+                )
+            with col2:
+                if st.button(f"Delete", key=f"del_{name}", type="secondary"):
+                    path.unlink()
+                    st.rerun()
 
-    # --- Download ---
-    st.download_button(
-        label="Download HTML",
-        data=html_output,
-        file_name=f"{config.slug}-menu.html",
-        mime="text/html",
-    )
+    # Upload tab
+    with tabs[-1]:
+        uploaded_file = st.file_uploader(
+            "Drop a .docx menu file here",
+            type=["docx"],
+            label_visibility="collapsed",
+        )
+
+        if uploaded_file is not None:
+            file_bytes = uploaded_file.read()
+            filename = uploaded_file.name
+
+            with st.status("Processing menu...", expanded=True) as status:
+                st.write("Extracting text from document...")
+                raw_text = extract_text(file_bytes)
+
+                st.write("Filtering menu content...")
+                filtered_text = filter_menu_content(raw_text)
+
+                st.write("Detecting restaurant...")
+                config = detect_restaurant(filename, raw_text)
+                st.write(f"Detected: **{config.name}**")
+
+                status_placeholder = st.empty()
+
+                def on_progress(tab_name, index, total):
+                    status_placeholder.write(f"Parsing tab {index}/{total}: **{tab_name}**...")
+
+                try:
+                    parsed_menu, raw_json = parse_menu(
+                        filtered_text,
+                        model=model_id,
+                        api_key=api_key if api_key else None,
+                        on_progress=on_progress,
+                    )
+                except Exception as e:
+                    status.update(label="Error", state="error")
+                    st.error(f"API Error: {e}")
+                    st.stop()
+
+                status_placeholder.empty()
+
+                st.write("Balancing columns...")
+                restaurant = balance_menu(
+                    parsed_menu,
+                    restaurant_name=config.name,
+                    slug=config.slug,
+                    accent_color=config.accent_color,
+                    accent_light=config.accent_light,
+                )
+
+                st.write("Rendering HTML preview...")
+                html_output = render_html(restaurant)
+
+                # Save to outputs/
+                _save_menu(config.slug, html_output)
+
+                status.update(label="Done!", state="complete")
+
+            components.html(html_output, height=800, scrolling=True)
+
+            st.download_button(
+                label="Download HTML",
+                data=html_output,
+                file_name=f"{config.slug}-menu.html",
+                mime="text/html",
+                key="dl_new",
+            )
+
+            st.info("Menu saved! Refresh to see it in the tabs above.")
