@@ -164,21 +164,21 @@ def _get_saved_menus() -> dict[str, Path]:
 
 def _process_upload(file_bytes: bytes, filename: str) -> None:
     """Process a .docx file, save HTML to outputs/, then rerun."""
-    with st.status("Processing menu...", expanded=True) as status:
-        st.write("Extracting text...")
+    with st.status("Preparing your menu...", expanded=True) as status:
+        st.write("Reading the menu...")
         raw_text = extract_text(file_bytes)
 
-        st.write("Filtering content...")
+        st.write("Prepping ingredients...")
         filtered_text = filter_menu_content(raw_text)
 
-        st.write("Detecting restaurant...")
+        st.write("Identifying the kitchen...")
         config = detect_restaurant(filename, raw_text)
-        st.write(f"Detected: **{config.name}**")
+        st.write(f"Found: **{config.name}**")
 
         progress = st.empty()
 
         def on_progress(tab_name, index, total):
-            progress.write(f"Parsing tab {index}/{total}: **{tab_name}**...")
+            progress.write(f"Plating course {index} of {total}: **{tab_name}**...")
 
         try:
             parsed_menu, _ = parse_menu(
@@ -188,13 +188,13 @@ def _process_upload(file_bytes: bytes, filename: str) -> None:
                 on_progress=on_progress,
             )
         except Exception as e:
-            status.update(label="Error", state="error")
+            status.update(label="Something burned in the kitchen", state="error")
             st.error(f"API Error: {e}")
             st.stop()
 
         progress.empty()
 
-        st.write("Balancing columns...")
+        st.write("Arranging the table...")
         restaurant = balance_menu(
             parsed_menu,
             restaurant_name=config.name,
@@ -203,13 +203,13 @@ def _process_upload(file_bytes: bytes, filename: str) -> None:
             accent_light=config.accent_light,
         )
 
-        st.write("Rendering...")
+        st.write("Final garnish...")
         html_output = render_html(restaurant)
 
         path = OUTPUTS_DIR / f"{config.slug}-menu.html"
         path.write_text(html_output, encoding="utf-8")
 
-        status.update(label=f"{config.name} — Complete!", state="complete")
+        status.update(label=f"{config.name} — Bon appétit!", state="complete")
 
     time.sleep(1.5)
     st.rerun()
