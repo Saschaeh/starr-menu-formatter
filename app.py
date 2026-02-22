@@ -16,43 +16,179 @@ st.set_page_config(
     layout="wide",
 )
 
-# --- Sidebar ---
-st.sidebar.title("Settings")
+# --- Custom CSS matching Starr brand ---
+st.markdown("""
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@400;500;600&display=swap');
 
-model_choice = st.sidebar.selectbox(
-    "Claude Model",
-    options=[
-        ("claude-sonnet-4-5-20250514", "Sonnet 4.5 (Recommended)"),
-        ("claude-haiku-4-5-20251001", "Haiku 4.5 (Faster / Cheaper)"),
-    ],
-    format_func=lambda x: x[1],
-    index=0,
-)
-model_id = model_choice[0]
+    /* Hide default Streamlit header/footer */
+    #MainMenu {visibility: hidden;}
+    header[data-testid="stHeader"] {display: none;}
+    footer {visibility: hidden;}
 
-api_key = st.sidebar.text_input(
-    "Anthropic API Key",
-    type="password",
-    help="Leave blank to use ANTHROPIC_API_KEY environment variable or Streamlit secrets.",
-)
+    /* Root vars */
+    :root {
+        --navy: #1B2A4A;
+        --gold: #C5A55A;
+        --cream: #F5F3EF;
+        --text-dark: #1B2A4A;
+        --text-muted: #6B7280;
+        --border-light: #DDD9D1;
+    }
 
-# Try to get API key from Streamlit secrets if not provided
-if not api_key:
-    try:
-        api_key = st.secrets.get("ANTHROPIC_API_KEY", None)
-    except Exception:
-        api_key = None
+    /* Background */
+    .stApp {
+        background-color: var(--cream);
+    }
 
-debug_mode = st.sidebar.toggle("Debug Mode", value=False)
+    /* Branded header bar */
+    .starr-header {
+        background: var(--navy);
+        border-top: 4px solid var(--gold);
+        border-bottom: 4px solid var(--gold);
+        padding: 1.75rem 2.5rem;
+        margin: -1rem -1rem 2rem -1rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .starr-header h1 {
+        font-family: 'Playfair Display', Georgia, serif;
+        color: #FFFFFF;
+        font-size: 2rem;
+        font-weight: 700;
+        margin: 0;
+        letter-spacing: 0.01em;
+    }
+    .starr-header .subtitle {
+        font-family: 'DM Sans', sans-serif;
+        color: var(--gold);
+        font-size: 0.85rem;
+        font-weight: 500;
+        letter-spacing: 0.15em;
+        text-transform: uppercase;
+        margin-top: 0.25rem;
+    }
+    .starr-header .branding {
+        font-family: 'DM Sans', sans-serif;
+        color: var(--gold);
+        font-style: italic;
+        font-size: 0.9rem;
+    }
 
-# --- Main ---
-st.title("Starr Menu CMS Formatter")
-st.markdown("Upload a restaurant menu `.docx` file to get a CMS-ready HTML preview.")
+    /* Section headings */
+    .section-heading {
+        font-family: 'Playfair Display', Georgia, serif;
+        color: var(--navy);
+        font-size: 1.5rem;
+        font-weight: 700;
+        margin: 1.5rem 0 0.25rem 0;
+    }
+    .gold-rule {
+        border: none;
+        border-top: 3px solid var(--gold);
+        margin: 0 0 1.5rem 0;
+    }
+
+    /* File uploader styling */
+    [data-testid="stFileUploader"] {
+        border: 2px dashed var(--border-light);
+        border-radius: 12px;
+        padding: 1rem;
+        background: #FFFFFF;
+    }
+    [data-testid="stFileUploader"]:hover {
+        border-color: var(--gold);
+    }
+
+    /* Metric cards */
+    [data-testid="stMetric"] {
+        background: #FFFFFF;
+        border: 1px solid var(--border-light);
+        border-radius: 8px;
+        padding: 1rem;
+        box-shadow: 0 1px 3px rgba(27,42,74,0.06);
+    }
+    [data-testid="stMetricLabel"] {
+        font-family: 'DM Sans', sans-serif;
+        color: var(--navy) !important;
+        font-weight: 600 !important;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        font-size: 0.8rem !important;
+    }
+    [data-testid="stMetricValue"] {
+        color: var(--navy) !important;
+        font-family: 'Playfair Display', Georgia, serif !important;
+    }
+    [data-testid="stMetricDelta"] {
+        color: var(--gold) !important;
+    }
+
+    /* Buttons */
+    .stDownloadButton > button {
+        background: var(--navy) !important;
+        color: #FFFFFF !important;
+        border: 2px solid var(--navy) !important;
+        border-radius: 6px;
+        font-family: 'DM Sans', sans-serif;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        padding: 0.5rem 2rem;
+        transition: all 0.2s;
+    }
+    .stDownloadButton > button:hover {
+        background: transparent !important;
+        color: var(--navy) !important;
+        border-color: var(--navy) !important;
+    }
+
+    /* Status expander */
+    [data-testid="stStatus"] {
+        background: #FFFFFF;
+        border: 1px solid var(--border-light);
+        border-radius: 8px;
+    }
+
+    /* Divider */
+    hr {
+        border-color: var(--border-light) !important;
+    }
+
+    /* Subheader */
+    .stMarkdown h3 {
+        font-family: 'Playfair Display', Georgia, serif;
+        color: var(--navy);
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# --- Branded Header ---
+st.markdown("""
+<div class="starr-header">
+    <div>
+        <h1>Starr Restaurants</h1>
+        <div class="subtitle">Menu CMS Formatter</div>
+    </div>
+    <div class="branding">Made{<i>Tooled</i>}</div>
+</div>
+""", unsafe_allow_html=True)
+
+# --- Config (from secrets / env only) ---
+model_id = "claude-sonnet-4-5-20250514"
+
+try:
+    api_key = st.secrets.get("ANTHROPIC_API_KEY", None)
+except Exception:
+    api_key = None
+
+# --- Upload Section ---
+st.markdown('<div class="section-heading">Upload Menu Document</div><hr class="gold-rule">', unsafe_allow_html=True)
 
 uploaded_file = st.file_uploader(
-    "Choose a .docx file",
+    "Drop a .docx menu file here",
     type=["docx"],
-    help="Upload a Starr Restaurants menu document",
+    label_visibility="collapsed",
 )
 
 if uploaded_file is not None:
@@ -60,21 +196,17 @@ if uploaded_file is not None:
     filename = uploaded_file.name
 
     with st.status("Processing menu...", expanded=True) as status:
-        # Step 1: Extract text
         st.write("Extracting text from document...")
         raw_text = extract_text(file_bytes)
 
-        # Step 2: Filter menu content
         st.write("Filtering menu content...")
         filtered_text = filter_menu_content(raw_text)
 
-        # Step 3: Detect restaurant
         st.write("Detecting restaurant...")
         config = detect_restaurant(filename, raw_text)
         st.write(f"Detected: **{config.name}**")
 
-        # Step 4: Call Claude API
-        st.write(f"Parsing with Claude ({model_id.split('-')[1].title()})...")
+        st.write("Parsing menu content...")
         try:
             parsed_menu, raw_json = parse_menu(
                 filtered_text,
@@ -86,7 +218,6 @@ if uploaded_file is not None:
             st.error(f"API Error: {e}")
             st.stop()
 
-        # Step 5: Balance columns
         st.write("Balancing columns...")
         restaurant = balance_menu(
             parsed_menu,
@@ -96,14 +227,14 @@ if uploaded_file is not None:
             accent_light=config.accent_light,
         )
 
-        # Step 6: Render HTML
         st.write("Rendering HTML preview...")
         html_output = render_html(restaurant)
 
         status.update(label="Done!", state="complete")
 
     # --- Summary ---
-    st.divider()
+    st.markdown('<div class="section-heading">Results Summary</div><hr class="gold-rule">', unsafe_allow_html=True)
+
     cols = st.columns(len(restaurant.tabs) + 1)
     cols[0].metric("Tabs", len(restaurant.tabs))
     for i, tab in enumerate(restaurant.tabs):
@@ -121,7 +252,7 @@ if uploaded_file is not None:
         )
 
     # --- HTML Preview ---
-    st.subheader("Preview")
+    st.markdown('<div class="section-heading">Menu Preview</div><hr class="gold-rule">', unsafe_allow_html=True)
     components.html(html_output, height=800, scrolling=True)
 
     # --- Download ---
@@ -131,20 +262,3 @@ if uploaded_file is not None:
         file_name=f"{config.slug}-menu.html",
         mime="text/html",
     )
-
-    # --- Debug Mode ---
-    if debug_mode:
-        st.divider()
-        st.subheader("Debug Info")
-
-        with st.expander("Extracted Text (Raw)", expanded=False):
-            st.text(raw_text)
-
-        with st.expander("Filtered Text (Sent to LLM)", expanded=False):
-            st.text(filtered_text)
-
-        with st.expander("LLM Raw JSON Response", expanded=False):
-            st.code(raw_json, language="json")
-
-        with st.expander("Parsed Restaurant Model", expanded=False):
-            st.json(restaurant.model_dump())
