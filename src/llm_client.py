@@ -7,133 +7,128 @@ import re
 
 import anthropic
 
-from .models import ParsedMenu
+from .models import ParsedMenu, ParsedTab
 
 SYSTEM_PROMPT = """\
-You are a menu data extraction specialist for Starr Restaurants. Your job is to parse restaurant menu documents into structured JSON that maps to a WordPress CMS layout.
+You are a menu data extraction specialist for Starr Restaurants. Your job is to parse a single menu tab into structured JSON.
 
 ## Output Schema
 
-Return ONLY valid JSON matching this structure (no markdown, no code fences):
+Return ONLY valid JSON (no markdown, no code fences):
 
 {
-  "restaurant_name": "Restaurant Name",
-  "tabs": [
+  "id": "tab-slug",
+  "label": "Tab Label",
+  "description": "Optional tab description text",
+  "sections": [
     {
-      "id": "tab-slug",
-      "label": "Tab Label",
-      "description": "Optional tab description text",
-      "sections": [
+      "title": "Section Name",
+      "note": "Optional subtitle like 'choice of:' or 'charcoal grilled'",
+      "items": [
         {
-          "title": "Section Name",
-          "note": "Optional subtitle like 'choice of:' or 'charcoal grilled'",
-          "items": [
-            {
-              "name": "Item Name",
-              "price": "$29",
-              "description": "item description, ingredients",
-              "raw": false,
-              "supplement": null,
-              "tags": []
-            }
-          ]
+          "name": "Item Name",
+          "price": "$29",
+          "description": "item description, ingredients",
+          "raw": false,
+          "supplement": null,
+          "tags": []
         }
-      ],
-      "footnote": "Optional footnote text (raw/undercooked disclaimer, etc.)"
+      ]
     }
-  ]
+  ],
+  "footnote": "Optional footnote text (raw/undercooked disclaimer, etc.)"
 }
 
 ## Parsing Rules
 
-### Document Structure
-- Lines starting with `## ` are TAB headings. The text after `## ` (minus "Page:" suffix) becomes the tab label.
-- Lines wrapped in `**bold**` are SECTION headings within a tab.
-- Everything else is menu item content.
+### Tab Identity
+- The tab heading is provided. Generate a URL-friendly slug for "id" and a clean "label".
+- Remove "Page:" or "Page" suffix from labels: "Dinner Page:" → id: "dinner", label: "Dinner"
 
-### Tab IDs
-- Generate URL-friendly slugs: "Miami Spice Page:" → id: "miami-spice", label: "Miami Spice"
-- Remove "Page:" or "Page" suffix from labels.
+### Section Headings
+- Lines wrapped in `**bold**` are SECTION headings within the tab.
 
 ### Menu Items
 Each item can appear in two formats:
 
 **Format A — One item per line with inline price:**
 `Item Name  description  $29`
-or
-`Item Name  $29`
-followed by a description on a new line.
+or `Item Name  $29` followed by a description on a new line.
 
 **Format B — Multi-line blocks:**
-```
-Item Name  $29
-description text, ingredients
-```
-or
-```
-Item Name*  +$7
-description
-```
+`Item Name  $29` then `description text, ingredients`
+or `Item Name*  +$7` then `description`
 
 ### Price Extraction
 - Standard: `$29`, `$198`, `$30 per oz.`
-- Supplement/upcharge: `+$7`, `+$12` — put in "supplement" field, NOT in "price"
-- Prix fixe base price: appears after section note like "$35 per person" — put as section note
-- Dual prices: `8 oz. $72` / `10 oz. $89` — keep size in the name, price separate
-- No price: some items in prix fixe menus have no individual price — set price to null
+- Supplement/upcharge: `+$7`, `+$12` → "supplement" field, NOT "price"
+- Prix fixe base price like "$35 per person" → section note or tab description
+- Dual prices: `8 oz. $72` / `10 oz. $89` → keep size in name, price separate
+- No price: set price to null
 
 ### Special Markers
-- `*` after item name → set "raw": true (indicates may contain raw ingredients)
-- Dietary tags like (GF), (V), (VG) → extract into "tags" array
-- Section subtitle text like "choice of:", "charcoal grilled", "served with..." → put in section "note"
+- `*` after item name → set "raw": true
+- Dietary tags (GF), (V), (VG) → "tags" array
+- Section subtitle text like "choice of:", "charcoal grilled" → section "note"
 
 ### Content to IGNORE
 - "DOWNLOAD PDF" lines
 - "Click to view/see..." links
-- Repeated menu navigation headers (tab names listed at top of each page)
-- Footer content, contact info, social media
-- "Menu Header (appears on every menu page)" annotations
+- Tab names listed at top (navigation headers)
+- Footer content, contact info
 
 ### Footnotes
-- Raw/undercooked disclaimers → capture as tab "footnote"
-- Format: "*May contain raw or undercooked..."
+- Raw/undercooked disclaimers → "footnote"
 
 ### Tab Description
-- Text immediately after the tab title (before sections) that describes the tab
-- Examples: "Available from August 1st – September 30th", "$35 per person"
-- Put this in the tab's "description" field
+- Text right after the tab title (before sections) describing the tab → "description"
 
 ## Important
-- Preserve exact item names, descriptions, and prices from the document
-- Do NOT invent or guess items — only extract what's in the document
-- If a section has a subtitle/note, include it
-- Keep accent marks and special characters (é, ü, ñ, etc.)
-- Items within a section should maintain their document order
+- Preserve exact item names, descriptions, and prices
+- Do NOT invent items — only extract what's in the document
+- Keep accent marks and special characters
+- Maintain document order
+- If the tab has NO menu items, return sections as an empty array
 """
 
 
-def parse_menu(
-    text: str,
-    model: str = "claude-sonnet-4-5-20250514",
-    api_key: str | None = None,
-) -> tuple[ParsedMenu, str]:
-    """Send filtered menu text to Claude and parse the JSON response.
+def _split_into_tabs(text: str) -> list[tuple[str, str]]:
+    """Split filtered document text into (heading, content) per tab."""
+    lines = text.split("\n")
+    tabs: list[tuple[str, str]] = []
+    current_heading = None
+    current_lines: list[str] = []
 
-    Args:
-        text: Filtered, annotated menu text from docx_parser.
-        model: Claude model ID to use.
-        api_key: Optional API key (falls back to ANTHROPIC_API_KEY env var).
+    for line in lines:
+        if line.startswith("## "):
+            # Save previous tab
+            if current_heading is not None:
+                tabs.append((current_heading, "\n".join(current_lines)))
+            current_heading = line
+            current_lines = []
+        elif current_heading is not None:
+            current_lines.append(line)
 
-    Returns:
-        ParsedMenu with flat sections per tab (no column balancing yet).
+    # Save last tab
+    if current_heading is not None:
+        tabs.append((current_heading, "\n".join(current_lines)))
 
-    Raises:
-        ValueError: If the API returns invalid JSON or empty results.
-        anthropic.APIError: On API communication errors.
-    """
-    client = anthropic.Anthropic(api_key=api_key) if api_key else anthropic.Anthropic()
+    return tabs
 
-    user_prompt = f"Parse this restaurant menu document into structured JSON:\n\n<document>\n{text}\n</document>"
+
+def _parse_single_tab(
+    client: anthropic.Anthropic,
+    heading: str,
+    content: str,
+    model: str,
+) -> ParsedTab | None:
+    """Parse a single tab's content via the API. Returns None if tab is empty."""
+    # Skip tabs with no real content
+    stripped = content.strip()
+    if not stripped or len(stripped) < 10:
+        return None
+
+    user_prompt = f"Parse this menu tab into structured JSON:\n\nTab heading: {heading}\n\n<content>\n{content}\n</content>"
 
     message = client.messages.create(
         model=model,
@@ -142,22 +137,72 @@ def parse_menu(
         messages=[{"role": "user", "content": user_prompt}],
     )
 
-    raw_response = message.content[0].text
+    raw = message.content[0].text.strip()
 
-    # Extract JSON from response (handle potential markdown code fences)
-    json_str = raw_response.strip()
-    if json_str.startswith("```"):
-        json_str = re.sub(r"^```(?:json)?\s*\n?", "", json_str)
-        json_str = re.sub(r"\n?```\s*$", "", json_str)
+    # Strip code fences
+    if raw.startswith("```"):
+        raw = re.sub(r"^```(?:json)?\s*\n?", "", raw)
+        raw = re.sub(r"\n?```\s*$", "", raw)
 
-    try:
-        data = json.loads(json_str)
-    except json.JSONDecodeError as e:
-        raise ValueError(f"Failed to parse LLM response as JSON: {e}\n\nRaw response:\n{raw_response[:500]}")
+    data = json.loads(raw)
+    tab = ParsedTab.model_validate(data)
 
-    parsed = ParsedMenu.model_validate(data)
+    # Skip tabs that have no items at all
+    total_items = sum(len(s.items) for s in tab.sections)
+    if total_items == 0:
+        return None
 
-    if not parsed.tabs:
-        raise ValueError("LLM returned no tabs — the document may not contain menu content.")
+    return tab
 
-    return parsed, raw_response
+
+def parse_menu(
+    text: str,
+    model: str = "claude-3-haiku-20240307",
+    api_key: str | None = None,
+    on_progress: callable = None,
+) -> tuple[ParsedMenu, str]:
+    """Parse menu by splitting into per-tab API calls.
+
+    Args:
+        text: Filtered, annotated menu text from docx_parser.
+        model: Claude model ID to use.
+        api_key: Optional API key.
+        on_progress: Optional callback(tab_name, index, total) for progress updates.
+
+    Returns:
+        Tuple of (ParsedMenu, raw_responses_combined).
+    """
+    client = anthropic.Anthropic(api_key=api_key) if api_key else anthropic.Anthropic()
+
+    tab_chunks = _split_into_tabs(text)
+    if not tab_chunks:
+        raise ValueError("No tab headings (## ) found in the document.")
+
+    tabs: list[ParsedTab] = []
+    raw_responses: list[str] = []
+    errors: list[str] = []
+
+    for i, (heading, content) in enumerate(tab_chunks):
+        tab_name = heading.replace("## ", "").replace("Page:", "").replace("Page", "").strip().rstrip(":")
+        if on_progress:
+            on_progress(tab_name, i + 1, len(tab_chunks))
+
+        try:
+            tab = _parse_single_tab(client, heading, content, model)
+            if tab:
+                tabs.append(tab)
+                raw_responses.append(f"--- {tab_name} ---\n{json.dumps(tab.model_dump(), indent=2)}")
+        except json.JSONDecodeError as e:
+            errors.append(f"{tab_name}: JSON parse error — {e}")
+        except anthropic.APIError as e:
+            errors.append(f"{tab_name}: API error — {e}")
+
+    if not tabs:
+        error_detail = "\n".join(errors) if errors else "No menu items found in any tab."
+        raise ValueError(f"No tabs with menu items were parsed.\n{error_detail}")
+
+    # Extract restaurant name from first tab or heading
+    restaurant_name = tab_chunks[0][0].replace("## ", "").split("Page")[0].strip().rstrip(":")
+    parsed = ParsedMenu(restaurant_name=restaurant_name, tabs=tabs)
+
+    return parsed, "\n\n".join(raw_responses)
