@@ -45,8 +45,11 @@ Return ONLY valid JSON (no markdown, no code fences):
 - The tab heading is provided. Generate a URL-friendly slug for "id" and a clean "label".
 - Remove "Page:" or "Page" suffix from labels: "Dinner Page:" → id: "dinner", label: "Dinner"
 
-### Section Headings
-- Lines wrapped in `**bold**` are SECTION headings within the tab.
+### Section Headings — CRITICAL
+- EVERY line wrapped in `**bold**` markers is a section heading. You MUST create a section for EACH one.
+- This includes food sections AND beverage sections: **Cocktails**, **Sake**, **Wine**, **Beer**, **Spirits**, etc.
+- Do NOT skip or merge bold headings. Each `**bold**` line = one section in the output.
+- If a section has sub-categories (e.g. WHITE / ROSE / RED under Wine), include the sub-category as a tag on each item.
 
 ### Menu Items
 Each item can appear in two formats:
@@ -60,34 +63,41 @@ or `Item Name  $29` followed by a description on a new line.
 or `Item Name*  +$7` then `description`
 
 ### Price Extraction
-- Standard: `$29`, `$198`, `$30 per oz.`
+- Standard: `$29`, `$198`, `$30 per oz.`, `$30/oz.`
+- Market price: `MP` or `Market Price` → set price to "MP"
 - Supplement/upcharge: `+$7`, `+$12` → "supplement" field, NOT "price"
 - Prix fixe base price like "$35 per person" → section note or tab description
-- Dual prices: `8 oz. $72` / `10 oz. $89` → keep size in name, price separate
-- No price: set price to null
+- Dual prices: `$60 / $80` → keep as-is in price field
+- Size + price: `8 oz. $72` → include size in description, price separate
+- No price found: set price to null
 
 ### Special Markers
 - `*` after item name → set "raw": true
 - Dietary tags (GF), (V), (VG) → "tags" array
-- Section subtitle text like "choice of:", "charcoal grilled" → section "note"
+- Wine type labels (WHITE, ROSE/ROSÉ, RED) → add as tag on each wine item
+- Section subtitle text like "choice of:", "charcoal grilled", "2 pieces per order" → section "note"
 
-### Content to IGNORE
+### Content to IGNORE (do NOT include as items)
 - "DOWNLOAD PDF" lines
 - "Click to view/see..." links
-- Tab names listed at top (navigation headers)
+- Navigation labels at the start of content (single words in ALL CAPS that match tab names, e.g. "BEVERAGE", "LUNCH", "DINNER")
+- The tab name repeated as plain text
 - Footer content, contact info
+- "Please let your server know..." disclaimers (these are NOT items)
 
 ### Footnotes
-- Raw/undercooked disclaimers → "footnote"
+- Raw/undercooked disclaimers (lines starting with `*` at the end) → "footnote"
 
 ### Tab Description
-- Text right after the tab title (before sections) describing the tab → "description"
+- Text right after the tab title that describes pricing/availability/rules → "description"
+- Examples: "Available August 1st – September 30th...", "$35 per person", "served with miso soup..."
 
 ## Important
-- Preserve exact item names, descriptions, and prices
+- Preserve exact item names, descriptions, and prices from the document
 - Do NOT invent items — only extract what's in the document
-- Keep accent marks and special characters
+- Keep accent marks and special characters (é, â, ô, etc.)
 - Maintain document order
+- Extract ALL sections including beverages — do not stop at food sections
 - If the tab has NO menu items, return sections as an empty array
 """
 
@@ -113,7 +123,52 @@ def _split_into_tabs(text: str) -> list[tuple[str, str]]:
     if current_heading is not None:
         tabs.append((current_heading, "\n".join(current_lines)))
 
-    return tabs
+    # Collect all tab labels for noise detection
+    tab_labels = set()
+    for heading, _ in tabs:
+        label = heading.replace("## ", "").strip()
+        # Extract just the name part before "Page"
+        name = re.sub(r"\s*Page\s*:?\s*$", "", label, flags=re.IGNORECASE).strip()
+        tab_labels.add(name.upper())
+
+    # Clean each tab's content: remove nav noise at the start
+    cleaned_tabs = []
+    for heading, content in tabs:
+        cleaned_content = _clean_tab_content(content, tab_labels)
+        cleaned_tabs.append((heading, cleaned_content))
+
+    return cleaned_tabs
+
+
+def _clean_tab_content(content: str, tab_labels: set[str]) -> str:
+    """Remove navigation noise from the start of a tab's content.
+
+    Strips lines before the first section heading (**bold**) or menu item
+    that are just nav labels (e.g. "BEVERAGE", "LUNCH", the tab name repeated).
+    """
+    lines = content.split("\n")
+    cleaned: list[str] = []
+    found_content = False
+
+    for line in lines:
+        stripped = line.strip()
+
+        if not found_content:
+            # Skip empty lines at the start
+            if not stripped:
+                continue
+            # Skip nav-like labels (single words in ALL CAPS that match tab labels)
+            if stripped.upper() in tab_labels:
+                continue
+            # Skip single-word ALL CAPS lines that look like nav labels
+            if re.match(r"^[A-Z]{3,}$", stripped) and stripped not in ("GF", "MP"):
+                continue
+            # Once we hit real content (bold section, price, description), keep everything
+            found_content = True
+
+        cleaned.append(line)
+
+    return "\n".join(cleaned)
 
 
 def _parse_single_tab(

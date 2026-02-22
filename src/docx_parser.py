@@ -129,10 +129,20 @@ def filter_menu_content(text: str) -> str:
         r"^SAVE THE DATES",
     ]
 
+    # Tab headings to skip entirely (variant/dietary tabs, non-menu pages)
+    skip_tab_patterns = [
+        r"vegan|vegetarian|gluten.free",
+        r"^VEG\s+",  # "VEG Dinner Menu", "VEG Dessert Menu"
+        r"group\s+dining",
+        r"happenings?",
+        r"private\s+(dining|events?)",
+        r"gift\s+cards?",
+    ]
+
     # Track which tab labels we've seen (to skip repeated nav headers)
-    current_tab_sections: list[str] = []
     in_nav_block = False
     nav_labels: set[str] = set()
+    skip_current_tab = False
 
     # First pass: collect all H2 tab labels
     for line in lines:
@@ -145,6 +155,21 @@ def filter_menu_content(text: str) -> str:
 
         # Skip blank lines
         if not stripped:
+            continue
+
+        # Check for tab headings — decide whether to skip entire tab
+        if stripped.startswith("## "):
+            tab_label = stripped[3:].strip()
+            skip_current_tab = any(
+                re.search(pat, tab_label, re.IGNORECASE)
+                for pat in skip_tab_patterns
+            )
+            if skip_current_tab:
+                continue
+            in_nav_block = False
+
+        # Skip all content under a skipped tab (until next ## heading)
+        if skip_current_tab:
             continue
 
         # Skip known noise patterns
