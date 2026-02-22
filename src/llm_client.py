@@ -137,7 +137,7 @@ def parse_menu(
 
     message = client.messages.create(
         model=model,
-        max_tokens=8192,
+        max_tokens=4096,
         system=SYSTEM_PROMPT,
         messages=[{"role": "user", "content": user_prompt}],
     )
