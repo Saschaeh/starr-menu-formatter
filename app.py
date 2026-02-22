@@ -1,7 +1,6 @@
 """Starr Menu CMS Formatter — Streamlit App."""
 
-import json
-import os
+import time
 from pathlib import Path
 
 import streamlit as st
@@ -23,17 +22,15 @@ st.set_page_config(
     layout="wide",
 )
 
-# --- Custom CSS matching Starr brand ---
+# --- Custom CSS ---
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@400;500;600&display=swap');
 
-    /* Hide default Streamlit header/footer */
     #MainMenu {visibility: hidden;}
     header[data-testid="stHeader"] {display: none;}
     footer {visibility: hidden;}
 
-    /* Root vars */
     :root {
         --navy: #1B2A4A;
         --gold: #C5A55A;
@@ -43,12 +40,8 @@ st.markdown("""
         --border-light: #DDD9D1;
     }
 
-    /* Background */
-    .stApp {
-        background-color: var(--cream);
-    }
+    .stApp { background-color: var(--cream); }
 
-    /* Branded header bar */
     .starr-header {
         background: var(--navy);
         border-top: 4px solid var(--gold);
@@ -65,7 +58,6 @@ st.markdown("""
         font-size: 2rem;
         font-weight: 700;
         margin: 0;
-        letter-spacing: 0.01em;
     }
     .starr-header .subtitle {
         font-family: 'DM Sans', sans-serif;
@@ -83,21 +75,6 @@ st.markdown("""
         font-size: 0.9rem;
     }
 
-    /* Section headings */
-    .section-heading {
-        font-family: 'Playfair Display', Georgia, serif;
-        color: var(--navy);
-        font-size: 1.5rem;
-        font-weight: 700;
-        margin: 1.5rem 0 0.25rem 0;
-    }
-    .gold-rule {
-        border: none;
-        border-top: 3px solid var(--gold);
-        margin: 0 0 1.5rem 0;
-    }
-
-    /* File uploader styling */
     [data-testid="stFileUploader"] {
         border: 2px dashed var(--border-light);
         border-radius: 12px;
@@ -108,25 +85,6 @@ st.markdown("""
         border-color: var(--gold);
     }
 
-    /* Status expander */
-    [data-testid="stStatus"] {
-        background: #FFFFFF;
-        border: 1px solid var(--border-light);
-        border-radius: 8px;
-    }
-
-    /* Divider */
-    hr {
-        border-color: var(--border-light) !important;
-    }
-
-    /* Subheader */
-    .stMarkdown h3 {
-        font-family: 'Playfair Display', Georgia, serif;
-        color: var(--navy);
-    }
-
-    /* Streamlit tabs styling */
     .stTabs [data-baseweb="tab-list"] {
         gap: 0;
         background: var(--navy);
@@ -144,21 +102,17 @@ st.markdown("""
         border: none;
         background: transparent;
     }
-    .stTabs [data-baseweb="tab"]:hover {
-        color: #FFFFFF;
-    }
+    .stTabs [data-baseweb="tab"]:hover { color: #FFFFFF; }
     .stTabs [aria-selected="true"] {
         color: #FFFFFF !important;
         border-bottom: 2px solid var(--gold) !important;
         background: transparent !important;
     }
-    .stTabs [data-baseweb="tab-panel"] {
-        padding: 1rem 0;
-    }
+    .stTabs [data-baseweb="tab-panel"] { padding: 1rem 0; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- Branded Header ---
+# --- Header ---
 st.markdown("""
 <div class="starr-header">
     <div>
@@ -169,7 +123,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# --- Config (from secrets / env only) ---
+# --- Config ---
 model_id = "claude-sonnet-4-5"
 
 try:
@@ -178,31 +132,85 @@ except Exception:
     api_key = None
 
 
-# --- Helper: load saved menus ---
+# --- Helpers ---
 def _get_saved_menus() -> dict[str, Path]:
-    """Return {display_name: path} for saved HTML files in outputs/."""
     menus = {}
     for f in sorted(OUTPUTS_DIR.glob("*.html")):
-        # Turn slug into display name: "makoto-menu.html" → "Makoto"
         name = f.stem.replace("-menu", "").replace("-", " ").title()
         menus[name] = f
     return menus
 
 
-def _save_menu(slug: str, html: str) -> None:
-    """Save processed HTML to outputs/."""
-    path = OUTPUTS_DIR / f"{slug}-menu.html"
-    path.write_text(html, encoding="utf-8")
+def _process_upload(file_bytes: bytes, filename: str) -> None:
+    """Process a .docx file, save HTML to outputs/, then rerun."""
+    with st.status("Processing menu...", expanded=True) as status:
+        st.write("Extracting text...")
+        raw_text = extract_text(file_bytes)
+
+        st.write("Filtering content...")
+        filtered_text = filter_menu_content(raw_text)
+
+        st.write("Detecting restaurant...")
+        config = detect_restaurant(filename, raw_text)
+        st.write(f"Detected: **{config.name}**")
+
+        progress = st.empty()
+
+        def on_progress(tab_name, index, total):
+            progress.write(f"Parsing tab {index}/{total}: **{tab_name}**...")
+
+        try:
+            parsed_menu, _ = parse_menu(
+                filtered_text,
+                model=model_id,
+                api_key=api_key if api_key else None,
+                on_progress=on_progress,
+            )
+        except Exception as e:
+            status.update(label="Error", state="error")
+            st.error(f"API Error: {e}")
+            st.stop()
+
+        progress.empty()
+
+        st.write("Balancing columns...")
+        restaurant = balance_menu(
+            parsed_menu,
+            restaurant_name=config.name,
+            slug=config.slug,
+            accent_color=config.accent_color,
+            accent_light=config.accent_light,
+        )
+
+        st.write("Rendering...")
+        html_output = render_html(restaurant)
+
+        path = OUTPUTS_DIR / f"{config.slug}-menu.html"
+        path.write_text(html_output, encoding="utf-8")
+
+        status.update(label=f"{config.name} — Complete!", state="complete")
+
+    time.sleep(1.5)
+    st.rerun()
 
 
-# --- Build tab list ---
+# --- Main UI ---
 saved_menus = _get_saved_menus()
 tab_names = list(saved_menus.keys()) + ["+ Upload New"]
+tabs = st.tabs(tab_names)
 
-if tab_names == ["+ Upload New"]:
-    # No saved menus yet — just show upload
-    st.markdown('<div class="section-heading">Upload Menu Document</div><hr class="gold-rule">', unsafe_allow_html=True)
+# Saved menu tabs
+for i, (name, path) in enumerate(saved_menus.items()):
+    with tabs[i]:
+        html_content = path.read_text(encoding="utf-8")
+        components.html(html_content, height=800, scrolling=True)
 
+        if st.button("Delete", key=f"del_{name}", type="secondary"):
+            path.unlink()
+            st.rerun()
+
+# Upload tab
+with tabs[-1]:
     uploaded_file = st.file_uploader(
         "Drop a .docx menu file here",
         type=["docx"],
@@ -210,131 +218,4 @@ if tab_names == ["+ Upload New"]:
     )
 
     if uploaded_file is not None:
-        file_bytes = uploaded_file.read()
-        filename = uploaded_file.name
-
-        with st.status("Processing menu...", expanded=True) as status:
-            st.write("Extracting text from document...")
-            raw_text = extract_text(file_bytes)
-
-            st.write("Filtering menu content...")
-            filtered_text = filter_menu_content(raw_text)
-
-            st.write("Detecting restaurant...")
-            config = detect_restaurant(filename, raw_text)
-            st.write(f"Detected: **{config.name}**")
-
-            status_placeholder = st.empty()
-
-            def on_progress(tab_name, index, total):
-                status_placeholder.write(f"Parsing tab {index}/{total}: **{tab_name}**...")
-
-            try:
-                parsed_menu, raw_json = parse_menu(
-                    filtered_text,
-                    model=model_id,
-                    api_key=api_key if api_key else None,
-                    on_progress=on_progress,
-                )
-            except Exception as e:
-                status.update(label="Error", state="error")
-                st.error(f"API Error: {e}")
-                st.stop()
-
-            status_placeholder.empty()
-
-            st.write("Balancing columns...")
-            restaurant = balance_menu(
-                parsed_menu,
-                restaurant_name=config.name,
-                slug=config.slug,
-                accent_color=config.accent_color,
-                accent_light=config.accent_light,
-            )
-
-            st.write("Rendering HTML preview...")
-            html_output = render_html(restaurant)
-
-            # Save to outputs/
-            _save_menu(config.slug, html_output)
-
-            status.update(label="Done!", state="complete")
-
-        components.html(html_output, height=800, scrolling=True)
-
-else:
-    # Show tabs for saved menus + upload
-    tabs = st.tabs(tab_names)
-
-    # Saved menu tabs
-    for i, (name, path) in enumerate(saved_menus.items()):
-        with tabs[i]:
-            html_content = path.read_text(encoding="utf-8")
-            components.html(html_content, height=800, scrolling=True)
-
-            if st.button("Delete", key=f"del_{name}", type="secondary"):
-                path.unlink()
-                st.rerun()
-
-    # Upload tab
-    with tabs[-1]:
-        uploaded_file = st.file_uploader(
-            "Drop a .docx menu file here",
-            type=["docx"],
-            label_visibility="collapsed",
-        )
-
-        if uploaded_file is not None:
-            file_bytes = uploaded_file.read()
-            filename = uploaded_file.name
-
-            with st.status("Processing menu...", expanded=True) as status:
-                st.write("Extracting text from document...")
-                raw_text = extract_text(file_bytes)
-
-                st.write("Filtering menu content...")
-                filtered_text = filter_menu_content(raw_text)
-
-                st.write("Detecting restaurant...")
-                config = detect_restaurant(filename, raw_text)
-                st.write(f"Detected: **{config.name}**")
-
-                status_placeholder = st.empty()
-
-                def on_progress(tab_name, index, total):
-                    status_placeholder.write(f"Parsing tab {index}/{total}: **{tab_name}**...")
-
-                try:
-                    parsed_menu, raw_json = parse_menu(
-                        filtered_text,
-                        model=model_id,
-                        api_key=api_key if api_key else None,
-                        on_progress=on_progress,
-                    )
-                except Exception as e:
-                    status.update(label="Error", state="error")
-                    st.error(f"API Error: {e}")
-                    st.stop()
-
-                status_placeholder.empty()
-
-                st.write("Balancing columns...")
-                restaurant = balance_menu(
-                    parsed_menu,
-                    restaurant_name=config.name,
-                    slug=config.slug,
-                    accent_color=config.accent_color,
-                    accent_light=config.accent_light,
-                )
-
-                st.write("Rendering HTML preview...")
-                html_output = render_html(restaurant)
-
-                # Save to outputs/
-                _save_menu(config.slug, html_output)
-
-                status.update(label="Done!", state="complete")
-
-            components.html(html_output, height=800, scrolling=True)
-
-            st.info("Menu saved! Refresh to see it in the tabs above.")
+        _process_upload(uploaded_file.read(), uploaded_file.name)
