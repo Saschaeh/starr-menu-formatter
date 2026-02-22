@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ restaurant.name }} — Menu CMS Preview</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --accent: {{ restaurant.accent_color }};
+            --accent-light: {{ restaurant.accent_light }};
+            --text: #1a1a2e;
+            --text-muted: #6b7280;
+            --border: #e5e7eb;
+            --bg: #ffffff;
+            --bg-alt: #f9fafb;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+            color: var(--text);
+            background: var(--bg);
+            line-height: 1.5;
+        }
+
+        .menu-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem 1.5rem;
+        }
+
+        .restaurant-header {
+            text-align: center;
+            margin-bottom: 2rem;
+            padding-bottom: 1.5rem;
+            border-bottom: 2px solid var(--accent);
+        }
+
+        .restaurant-name {
+            font-family: 'Playfair Display', Georgia, serif;
+            font-size: 2.25rem;
+            font-weight: 700;
+            color: var(--accent);
+            letter-spacing: 0.02em;
+        }
+
+        /* Tab Navigation */
+        .tab-nav {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.25rem;
+            justify-content: center;
+            margin-bottom: 2rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0;
+        }
+
+        .tab-btn {
+            padding: 0.625rem 1.25rem;
+            border: none;
+            background: none;
+            color: var(--text-muted);
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.875rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -1px;
+            transition: color 0.2s, border-color 0.2s;
+        }
+
+        .tab-btn:hover {
+            color: var(--accent);
+        }
+
+        .tab-btn.active {
+            color: var(--accent);
+            border-bottom-color: var(--accent);
+        }
+
+        /* Tab Panels */
+        .tab-panel {
+            display: none;
+        }
+
+        .tab-panel.active {
+            display: block;
+        }
+
+        .tab-header {
+            text-align: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .tab-description {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            font-style: italic;
+        }
+
+        /* Column Grid */
+        .columns-grid {
+            display: grid;
+            gap: 2rem;
+        }
+
+        .columns-1 { grid-template-columns: 1fr; max-width: 600px; margin: 0 auto; }
+        .columns-2 { grid-template-columns: 1fr 1fr; }
+        .columns-3 { grid-template-columns: 1fr 1fr 1fr; }
+
+        .column {
+            position: relative;
+        }
+
+        .column-label {
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--text-muted);
+            opacity: 0.5;
+            margin-bottom: 0.75rem;
+            text-align: center;
+        }
+
+        /* Sections */
+        .section {
+            margin-bottom: 1.75rem;
+        }
+
+        .section-title {
+            font-family: 'Playfair Display', Georgia, serif;
+            font-size: 1.15rem;
+            font-weight: 600;
+            color: var(--accent);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            padding-bottom: 0.375rem;
+            border-bottom: 1px dotted var(--border);
+            margin-bottom: 0.5rem;
+        }
+
+        .section-note {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            font-style: italic;
+            margin-bottom: 0.5rem;
+        }
+
+        /* Menu Items */
+        .menu-item {
+            padding: 0.375rem 0;
+        }
+
+        .item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            gap: 0.5rem;
+        }
+
+        .item-name {
+            font-weight: 600;
+            font-size: 0.95rem;
+            flex: 1;
+        }
+
+        .item-raw {
+            color: var(--accent);
+            font-weight: 700;
+        }
+
+        .item-price {
+            font-weight: 600;
+            font-size: 0.9rem;
+            white-space: nowrap;
+            color: var(--text);
+        }
+
+        .item-supplement {
+            color: #b45309;
+            font-weight: 600;
+            font-size: 0.85rem;
+            white-space: nowrap;
+        }
+
+        .item-description {
+            font-size: 0.825rem;
+            color: var(--text-muted);
+            margin-top: 0.125rem;
+        }
+
+        .item-tags {
+            display: flex;
+            gap: 0.25rem;
+            margin-top: 0.25rem;
+            flex-wrap: wrap;
+        }
+
+        .tag {
+            font-size: 0.65rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            padding: 0.1rem 0.4rem;
+            border-radius: 9999px;
+            background: var(--accent-light);
+            color: var(--accent);
+        }
+
+        /* Footnote */
+        .tab-footnote {
+            margin-top: 2rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            font-style: italic;
+            text-align: center;
+        }
+
+        /* Copy Button */
+        .copy-btn-wrapper {
+            text-align: right;
+            margin-bottom: 1rem;
+        }
+
+        .copy-btn {
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--border);
+            border-radius: 0.375rem;
+            background: var(--bg);
+            color: var(--text-muted);
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.8rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .copy-btn:hover {
+            background: var(--accent-light);
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .copy-btn.copied {
+            background: #dcfce7;
+            border-color: #16a34a;
+            color: #16a34a;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .columns-2, .columns-3 { grid-template-columns: 1fr; }
+            .restaurant-name { font-size: 1.75rem; }
+            .menu-container { padding: 1rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="menu-container">
+        <div class="restaurant-header">
+            <h1 class="restaurant-name">{{ restaurant.name }}</h1>
+        </div>
+
+        {% if restaurant.tabs | length > 1 %}
+        <nav class="tab-nav">
+            {% for tab in restaurant.tabs %}
+            <button class="tab-btn{% if loop.first %} active{% endif %}"
+                    data-tab="{{ tab.id }}"
+                    onclick="switchTab('{{ tab.id }}')">
+                {{ tab.label }}
+            </button>
+            {% endfor %}
+        </nav>
+        {% endif %}
+
+        {% for tab in restaurant.tabs %}
+        <div class="tab-panel{% if loop.first %} active{% endif %}" id="panel-{{ tab.id }}">
+
+            <div class="copy-btn-wrapper">
+                <button class="copy-btn" onclick="copyTab('{{ tab.id }}')">Copy for CMS</button>
+            </div>
+
+            {% if tab.description %}
+            <div class="tab-header">
+                <p class="tab-description">{{ tab.description }}</p>
+            </div>
+            {% endif %}
+
+            <div class="columns-grid columns-{{ tab.columns | length }}">
+                {% for column in tab.columns %}
+                <div class="column">
+                    {% if tab.columns | length > 1 %}
+                    <div class="column-label">Column {{ loop.index }}</div>
+                    {% endif %}
+
+                    {% for section in column.sections %}
+                    <div class="section" data-tab="{{ tab.id }}">
+                        <h3 class="section-title">{{ section.title }}</h3>
+                        {% if section.note %}
+                        <p class="section-note">{{ section.note }}</p>
+                        {% endif %}
+
+                        {% for item in section.items %}
+                        <div class="menu-item">
+                            <div class="item-header">
+                                <span class="item-name">
+                                    {{ item.name }}{% if item.raw %}<span class="item-raw">*</span>{% endif %}
+                                </span>
+                                {% if item.supplement %}
+                                <span class="item-supplement">{{ item.supplement }}</span>
+                                {% endif %}
+                                {% if item.price %}
+                                <span class="item-price">{{ item.price }}</span>
+                                {% endif %}
+                            </div>
+                            {% if item.description %}
+                            <p class="item-description">{{ item.description }}</p>
+                            {% endif %}
+                            {% if item.tags %}
+                            <div class="item-tags">
+                                {% for tag in item.tags %}
+                                <span class="tag">{{ tag }}</span>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endfor %}
+            </div>
+
+            {% if tab.footnote %}
+            <div class="tab-footnote">{{ tab.footnote }}</div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+
+    <script>
+        function switchTab(tabId) {
+            // Update buttons
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.tab === tabId);
+            });
+            // Update panels
+            document.querySelectorAll('.tab-panel').forEach(panel => {
+                panel.classList.toggle('active', panel.id === 'panel-' + tabId);
+            });
+        }
+
+        function copyTab(tabId) {
+            const panel = document.getElementById('panel-' + tabId);
+            if (!panel) return;
+
+            const lines = [];
+            const sections = panel.querySelectorAll('.section[data-tab="' + tabId + '"]');
+
+            sections.forEach((section, si) => {
+                const title = section.querySelector('.section-title');
+                if (title) lines.push(title.textContent.trim());
+
+                const note = section.querySelector('.section-note');
+                if (note) lines.push(note.textContent.trim());
+
+                section.querySelectorAll('.menu-item').forEach(item => {
+                    const name = item.querySelector('.item-name');
+                    const price = item.querySelector('.item-price');
+                    const supplement = item.querySelector('.item-supplement');
+                    const desc = item.querySelector('.item-description');
+
+                    let line = name ? name.textContent.trim() : '';
+                    if (supplement) line += '  ' + supplement.textContent.trim();
+                    if (price) line += '  ' + price.textContent.trim();
+                    lines.push(line);
+                    if (desc) lines.push(desc.textContent.trim());
+                });
+
+                if (si < sections.length - 1) lines.push('');
+            });
+
+            navigator.clipboard.writeText(lines.join('\n')).then(() => {
+                const btn = panel.querySelector('.copy-btn');
+                btn.textContent = 'Copied!';
+                btn.classList.add('copied');
+                setTimeout(() => {
+                    btn.textContent = 'Copy for CMS';
+                    btn.classList.remove('copied');
+                }, 2000);
+            });
+        }
+    </script>
+</body>
+</html>
