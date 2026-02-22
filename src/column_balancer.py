@@ -12,16 +12,16 @@ def _count_items(sections: list[Section]) -> int:
 
 def _target_columns(total_items: int, num_sections: int) -> int:
     """Determine column count based on items and section count."""
-    # Many sections (4+) always get 3 columns for visual balance
     if num_sections >= 4:
         return 3
-    # Even with few items, multiple sections benefit from 2-3 columns
-    if num_sections >= 2 and total_items >= 4:
-        return min(3, num_sections) if total_items >= 6 else 2
-    # Single section: spread items across columns for visual balance
-    if total_items <= 3:
+    if num_sections >= 2 and total_items > 8:
+        return 3
+    if num_sections >= 2:
+        return min(2, num_sections)
+    # Single section: fill one column before spilling to the next
+    if total_items <= 8:
         return 1
-    if total_items <= 5:
+    if total_items <= 16:
         return 2
     return 3
 
