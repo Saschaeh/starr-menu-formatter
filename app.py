@@ -194,7 +194,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- Config (from secrets / env only) ---
-model_id = "claude-3-haiku-20240307"
+model_id = "claude-sonnet-4-5"
 
 try:
     api_key = st.secrets.get("ANTHROPIC_API_KEY", None)

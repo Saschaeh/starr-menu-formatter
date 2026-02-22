@@ -187,7 +187,7 @@ def _parse_single_tab(
 
     message = client.messages.create(
         model=model,
-        max_tokens=4096,
+        max_tokens=8192,
         system=SYSTEM_PROMPT,
         messages=[{"role": "user", "content": user_prompt}],
     )
