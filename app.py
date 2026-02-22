@@ -17,7 +17,7 @@ OUTPUTS_DIR.mkdir(exist_ok=True)
 
 # --- Page Config ---
 st.set_page_config(
-    page_title="Starr Menu CMS Formatter",
+    page_title="Starr Restaurant Website Content Tool",
     page_icon=":fork_and_knife:",
     layout="wide",
 )
@@ -44,35 +44,36 @@ st.markdown("""
 
     .starr-header {
         background: var(--navy);
-        border-top: 4px solid var(--gold);
-        border-bottom: 4px solid var(--gold);
-        padding: 1.75rem 2.5rem;
+        border-top: 3px solid var(--gold);
+        border-bottom: 3px solid var(--gold);
+        padding: 2rem 2.5rem 1.5rem;
         margin: -1rem -1rem 2rem -1rem;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
+        position: relative;
     }
     .starr-header h1 {
         font-family: 'Playfair Display', Georgia, serif;
         color: #FFFFFF;
-        font-size: 2rem;
+        font-size: 1.75rem;
         font-weight: 700;
         margin: 0;
     }
     .starr-header .subtitle {
         font-family: 'DM Sans', sans-serif;
         color: var(--gold);
-        font-size: 0.85rem;
+        font-size: 0.8rem;
         font-weight: 500;
         letter-spacing: 0.15em;
         text-transform: uppercase;
-        margin-top: 0.25rem;
+        margin-top: 0.35rem;
     }
     .starr-header .branding {
         font-family: 'DM Sans', sans-serif;
         color: var(--gold);
         font-style: italic;
-        font-size: 0.9rem;
+        font-size: 0.85rem;
+        position: absolute;
+        bottom: 1rem;
+        right: 2.5rem;
     }
 
     [data-testid="stFileUploader"] {
@@ -109,6 +110,35 @@ st.markdown("""
         background: transparent !important;
     }
     .stTabs [data-baseweb="tab-panel"] { padding: 1rem 0; }
+
+    .menu-banner {
+        background: var(--navy);
+        color: #FFFFFF;
+        padding: 0.6rem 1.25rem;
+        border-radius: 8px 8px 0 0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0;
+    }
+    .menu-banner .menu-name {
+        font-family: 'Playfair Display', Georgia, serif;
+        font-size: 1rem;
+        font-weight: 600;
+    }
+    /* Subtle delete button styling */
+    .stTabs [data-baseweb="tab-panel"] button[kind="secondary"] {
+        background: transparent;
+        border: 1px solid var(--border-light);
+        color: var(--text-muted);
+        font-size: 0.75rem;
+        padding: 0.25rem 0.75rem;
+        margin-top: 0.3rem;
+    }
+    .stTabs [data-baseweb="tab-panel"] button[kind="secondary"]:hover {
+        color: #dc3545;
+        border-color: #dc3545;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -117,7 +147,7 @@ st.markdown("""
 <div class="starr-header">
     <div>
         <h1>Starr Restaurants</h1>
-        <div class="subtitle">Menu CMS Formatter</div>
+        <div class="subtitle">Restaurant Website Content Tool</div>
     </div>
     <div class="branding">Made{<i>Tooled</i>}</div>
 </div>
@@ -202,12 +232,20 @@ tabs = st.tabs(tab_names)
 # Saved menu tabs
 for i, (name, path) in enumerate(saved_menus.items()):
     with tabs[i]:
+        col_title, col_del = st.columns([9, 1])
+        with col_title:
+            st.markdown(f"""
+            <div class="menu-banner">
+                <span class="menu-name">{name}</span>
+            </div>
+            """, unsafe_allow_html=True)
+        with col_del:
+            if st.button("Delete", key=f"del_{name}", type="secondary"):
+                path.unlink()
+                st.rerun()
+
         html_content = path.read_text(encoding="utf-8")
         components.html(html_content, height=800, scrolling=True)
-
-        if st.button("Delete", key=f"del_{name}", type="secondary"):
-            path.unlink()
-            st.rerun()
 
 # Upload tab
 with tabs[-1]:
