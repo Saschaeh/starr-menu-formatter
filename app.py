@@ -116,7 +116,7 @@ st.markdown("""
     [class*="st-key-toolbar_"] {
         background: #E8EEF4;
         border-bottom: 1px solid #D0DAE4;
-        padding: 0.4rem 0;
+        padding: 0.4rem 0 0.4rem 0.5rem;
         margin-bottom: 0.5rem;
     }
     [class*="st-key-toolbar_"] button {
@@ -124,6 +124,7 @@ st.markdown("""
         font-size: 0.75rem !important;
         padding: 0.2rem 0.5rem !important;
         min-height: 0 !important;
+        max-width: 10rem;
     }
 </style>
 """, unsafe_allow_html=True)
