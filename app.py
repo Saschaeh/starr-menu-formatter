@@ -426,12 +426,9 @@ for i, menu_record in enumerate(saved_menus):
             _render_edit_view(restaurant_name, restaurant_model)
         else:
             # Preview mode
-            if restaurant_model:
-                html_content = render_html(restaurant_model)
-                components.html(html_content, height=800, scrolling=True)
-
-            # --- Controls toolbar ---
             reviewing_key = f"reviewing_{restaurant_name}"
+
+            # --- Controls toolbar (above preview) ---
             if restaurant_model:
                 left, right = st.columns([7, 3])
                 with left:
@@ -462,7 +459,6 @@ for i, menu_record in enumerate(saved_menus):
 
             # --- Review Accuracy panel ---
             if st.session_state.get(reviewing_key, False) and restaurant_model:
-                st.markdown("---")
                 url_col, btn_col = st.columns([5, 1])
                 saved_url = menu_record.get('menu_url') or ""
                 with url_col:
@@ -488,6 +484,11 @@ for i, menu_record in enumerate(saved_menus):
                     from src.menu_differ import MenuDiff
                     diff = MenuDiff.model_validate(st.session_state[diff_key])
                     _render_diff(diff)
+
+            # --- Menu preview ---
+            if restaurant_model:
+                html_content = render_html(restaurant_model)
+                components.html(html_content, height=800, scrolling=True)
 
 # Upload tab
 with tabs[-1]:
