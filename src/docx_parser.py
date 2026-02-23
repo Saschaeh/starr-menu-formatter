@@ -44,6 +44,7 @@ def extract_text(file_bytes: bytes) -> str:
     """
     doc = Document(BytesIO(file_bytes))
     lines: list[str] = []
+    in_menu_section = False
 
     for para in doc.paragraphs:
         text = para.text.strip()
@@ -55,14 +56,16 @@ def extract_text(file_bytes: bytes) -> str:
 
         heading = _get_heading_level(para)
         if heading == 1:
+            if re.match(r"Menu Pages", text, re.IGNORECASE):
+                in_menu_section = True
             lines.append(f"# {text}")
             continue
         if heading == 2:
             lines.append(f"## {text}")
             continue
 
-        # Skip list paragraphs (usually meta-notes like "Menu Header (appears on every...)")
-        if _is_list_paragraph(para):
+        # Skip list paragraphs only before "Menu Pages" heading (homepage meta-notes)
+        if _is_list_paragraph(para) and not in_menu_section:
             continue
 
         # Check if the entire paragraph is bold via runs
