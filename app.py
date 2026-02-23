@@ -112,41 +112,18 @@ st.markdown("""
     }
     .stTabs [data-baseweb="tab-panel"] { padding: 0; }
 
-    /* Compact toolbar bar */
-    div[data-testid="stVerticalBlock"] > div[data-testid="element-container"]:has(> .toolbar-bar) {
-        margin: 0; padding: 0;
-    }
-    .toolbar-bar {
-        background: #E5E1D8;
-        margin: -1rem -1rem 0.75rem -1rem;
-        padding: 0;
-    }
-    .toolbar-bar + div[data-testid="column"] { margin-top: 0; }
-    /* Target the horizontal block right after toolbar-bar marker */
-    div[data-testid="stVerticalBlock"]:has(> div .toolbar-bar) > div[data-testid="stHorizontalBlock"]:first-of-type {
-        background: #E5E1D8;
-        padding: 0.35rem 0.75rem;
-        margin: 0 -1rem 0.5rem -1rem;
+    /* Compact toolbar bar — targets the container around the 4-col button row */
+    .stTabs [data-baseweb="tab-panel"] > div > div[data-testid="stVerticalBlock"] > div:first-child > div[data-testid="stVerticalBlock"] > div[data-testid="stHorizontalBlock"]:first-of-type {
+        background: #E8EEF4;
+        padding: 0.4rem 0.75rem;
+        margin: -0.25rem -1rem 0.5rem -1rem;
+        border-bottom: 1px solid #D0DAE4;
         align-items: center;
-        gap: 0;
     }
-    div[data-testid="stVerticalBlock"]:has(> div .toolbar-bar) > div[data-testid="stHorizontalBlock"]:first-of-type [data-testid="column"] {
-        padding: 0 0.25rem !important;
-    }
-    div[data-testid="stVerticalBlock"]:has(> div .toolbar-bar) > div[data-testid="stHorizontalBlock"]:first-of-type button {
+    .stTabs [data-baseweb="tab-panel"] > div > div[data-testid="stVerticalBlock"] > div:first-child > div[data-testid="stVerticalBlock"] > div[data-testid="stHorizontalBlock"]:first-of-type button {
         font-family: 'DM Sans', sans-serif !important;
         font-size: 0.8rem !important;
-        padding: 0.3rem 1rem !important;
-        white-space: nowrap !important;
-    }
-    div[data-testid="stVerticalBlock"]:has(> div .toolbar-bar) > div[data-testid="stHorizontalBlock"]:first-of-type [data-testid="stBaseButton-secondary"] button {
-        background: transparent !important;
-        border: 1px solid var(--border-light) !important;
-        color: var(--text-muted) !important;
-    }
-    div[data-testid="stVerticalBlock"]:has(> div .toolbar-bar) > div[data-testid="stHorizontalBlock"]:first-of-type [data-testid="stBaseButton-secondary"] button:hover {
-        color: #dc3545 !important;
-        border-color: #dc3545 !important;
+        padding: 0.3rem 0.75rem !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -447,29 +424,30 @@ for i, menu_record in enumerate(saved_menus):
 
             # --- Compact toolbar ---
             if restaurant_model:
-                st.markdown('<div class="toolbar-bar"></div>', unsafe_allow_html=True)
-                c1, c2, c3, spacer, c4 = st.columns([0.8, 0.7, 1.3, 4, 1.1], gap="small")
-                with c1:
-                    if st.button("Edit", key=f"edit_{restaurant_name}"):
-                        st.session_state[editing_key] = True
-                        st.rerun()
-                with c2:
-                    if st.button("Delete", key=f"del_{restaurant_name}", type="secondary"):
-                        db.delete_menu(restaurant_name)
-                        st.rerun()
-                with c3:
-                    if st.button("Review Accuracy", key=f"review_{restaurant_name}"):
-                        st.session_state[reviewing_key] = not st.session_state.get(reviewing_key, False)
-                        st.rerun()
-                with c4:
-                    push_val = st.toggle(
-                        "Push Data",
-                        value=bool(menu_record['push_data']),
-                        key=f"push_{restaurant_name}",
-                    )
-                    if push_val != bool(menu_record['push_data']):
-                        db.set_push_data(restaurant_name, push_val)
-                        st.rerun()
+                tb = st.container()
+                with tb:
+                    c1, c2, c3, c4 = st.columns(4, gap="medium")
+                    with c1:
+                        if st.button("Edit", key=f"edit_{restaurant_name}", use_container_width=True):
+                            st.session_state[editing_key] = True
+                            st.rerun()
+                    with c2:
+                        if st.button("Delete", key=f"del_{restaurant_name}", type="secondary", use_container_width=True):
+                            db.delete_menu(restaurant_name)
+                            st.rerun()
+                    with c3:
+                        if st.button("Review Accuracy", key=f"review_{restaurant_name}", use_container_width=True):
+                            st.session_state[reviewing_key] = not st.session_state.get(reviewing_key, False)
+                            st.rerun()
+                    with c4:
+                        push_val = st.toggle(
+                            "Push Data",
+                            value=bool(menu_record['push_data']),
+                            key=f"push_{restaurant_name}",
+                        )
+                        if push_val != bool(menu_record['push_data']):
+                            db.set_push_data(restaurant_name, push_val)
+                            st.rerun()
 
             # --- Review Accuracy panel ---
             if st.session_state.get(reviewing_key, False) and restaurant_model:
