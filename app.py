@@ -120,7 +120,17 @@ st.markdown("""
         margin-bottom: 0.5rem;
     }
     [class*="st-key-toolbar_"] [data-testid="stHorizontalBlock"] {
-        gap: 0.5rem !important;
+        gap: 0 !important;
+    }
+    [class*="st-key-toolbar_"] [data-testid="stColumn"]:nth-child(1),
+    [class*="st-key-toolbar_"] [data-testid="stColumn"]:nth-child(2),
+    [class*="st-key-toolbar_"] [data-testid="stColumn"]:nth-child(3) {
+        flex: 0 0 auto !important;
+        width: auto !important;
+        padding-right: 0.5rem !important;
+    }
+    [class*="st-key-toolbar_"] [data-testid="stColumn"]:nth-child(4) {
+        flex: 1 !important;
     }
     [class*="st-key-toolbar_"] button {
         font-family: 'DM Sans', sans-serif !important;
@@ -131,6 +141,7 @@ st.markdown("""
     [class*="st-key-toolbar_"] [data-testid="stColumn"]:last-child {
         display: flex;
         justify-content: flex-end;
+        padding-right: 0.5rem !important;
     }
     [class*="st-key-toolbar_"] [data-testid="stColumn"]:last-child label {
         flex-direction: row-reverse !important;
