@@ -1,19 +1,18 @@
 """Starr Menu CMS Formatter — Streamlit App."""
 
+import copy
 import time
-from pathlib import Path
 
 import streamlit as st
 import streamlit.components.v1 as components
 
 from src.docx_parser import extract_text, filter_menu_content
+from src.models import Restaurant, Tab, Column, Section, MenuItem
 from src.restaurant_config import detect_restaurant
 from src.llm_client import parse_menu
 from src.column_balancer import balance_menu
 from src.html_renderer import render_html
-
-OUTPUTS_DIR = Path(__file__).parent / "outputs"
-OUTPUTS_DIR.mkdir(exist_ok=True)
+import db
 
 # --- Page Config ---
 st.set_page_config(
@@ -154,16 +153,8 @@ except Exception:
 
 
 # --- Helpers ---
-def _get_saved_menus() -> dict[str, Path]:
-    menus = {}
-    for f in sorted(OUTPUTS_DIR.glob("*.html")):
-        name = f.stem.replace("-menu", "").replace("-", " ").title()
-        menus[name] = f
-    return menus
-
-
 def _process_upload(file_bytes: bytes, filename: str) -> None:
-    """Process a .docx file, save HTML to outputs/, then rerun."""
+    """Process a .docx file, save to DB, then rerun."""
     with st.status("Preparing your menu...", expanded=True) as status:
         st.write("Reading the menu...")
         raw_text = extract_text(file_bytes)
@@ -203,11 +194,8 @@ def _process_upload(file_bytes: bytes, filename: str) -> None:
             accent_light=config.accent_light,
         )
 
-        st.write("Final garnish...")
-        html_output = render_html(restaurant)
-
-        path = OUTPUTS_DIR / f"{config.slug}-menu.html"
-        path.write_text(html_output, encoding="utf-8")
+        st.write("Saving to database...")
+        db.save_menu(config.name, restaurant)
 
         status.update(label=f"{config.name} — Bon appétit!", state="complete")
 
@@ -215,22 +203,160 @@ def _process_upload(file_bytes: bytes, filename: str) -> None:
     st.rerun()
 
 
+# --- Edit helpers ---
+def _get_edit_data(restaurant_name, restaurant_model):
+    """Get or initialize the working edit copy in session state."""
+    key = f"edit_data_{restaurant_name}"
+    if key not in st.session_state:
+        st.session_state[key] = restaurant_model.model_dump()
+    return st.session_state[key]
+
+
+def _save_edit_data(restaurant_name):
+    """Reconstruct Restaurant model from session state edit data and save to DB."""
+    key = f"edit_data_{restaurant_name}"
+    data = st.session_state.get(key)
+    if data:
+        model = Restaurant.model_validate(data)
+        db.save_menu(restaurant_name, model)
+        # Clear edit data so it reloads fresh from DB
+        del st.session_state[key]
+
+
+def _render_edit_view(restaurant_name, restaurant_model):
+    """Render inline editing UI for a restaurant menu."""
+    data = _get_edit_data(restaurant_name, restaurant_model)
+    rk = restaurant_name  # short alias for key building
+
+    for t_idx, tab_data in enumerate(data['tabs']):
+        with st.expander(f"Tab: {tab_data['label']}", expanded=False):
+            tab_data['label'] = st.text_input(
+                "Tab Name", value=tab_data['label'],
+                key=f"e_{rk}_t{t_idx}_label",
+            )
+            tab_data['description'] = st.text_area(
+                "Tab Description", value=tab_data.get('description') or '',
+                key=f"e_{rk}_t{t_idx}_desc", height=68,
+            ) or None
+
+            # Flatten sections across columns for display
+            flat_sec_idx = 0
+            for c_idx, col_data in enumerate(tab_data['columns']):
+                for s_idx, sec_data in enumerate(col_data['sections']):
+                    st.markdown(f"---")
+                    st.markdown(f"**Column {c_idx + 1} — Section {s_idx + 1}**")
+
+                    sec_data['title'] = st.text_input(
+                        "Section Title", value=sec_data['title'],
+                        key=f"e_{rk}_t{t_idx}_c{c_idx}_s{s_idx}_title",
+                    )
+                    sec_data['note'] = st.text_input(
+                        "Section Note", value=sec_data.get('note') or '',
+                        key=f"e_{rk}_t{t_idx}_c{c_idx}_s{s_idx}_note",
+                    ) or None
+
+                    # Items
+                    items_to_remove = []
+                    for it_idx, item_data in enumerate(sec_data['items']):
+                        cols = st.columns([3, 2, 3, 1])
+                        with cols[0]:
+                            item_data['name'] = st.text_input(
+                                "Name", value=item_data['name'],
+                                key=f"e_{rk}_t{t_idx}_c{c_idx}_s{s_idx}_i{it_idx}_name",
+                                label_visibility="collapsed",
+                                placeholder="Item name",
+                            )
+                        with cols[1]:
+                            item_data['price'] = st.text_input(
+                                "Price", value=item_data.get('price') or '',
+                                key=f"e_{rk}_t{t_idx}_c{c_idx}_s{s_idx}_i{it_idx}_price",
+                                label_visibility="collapsed",
+                                placeholder="Price",
+                            ) or None
+                        with cols[2]:
+                            item_data['description'] = st.text_input(
+                                "Description", value=item_data.get('description') or '',
+                                key=f"e_{rk}_t{t_idx}_c{c_idx}_s{s_idx}_i{it_idx}_desc",
+                                label_visibility="collapsed",
+                                placeholder="Description / ingredients",
+                            ) or None
+                        with cols[3]:
+                            if st.button("X", key=f"e_{rk}_t{t_idx}_c{c_idx}_s{s_idx}_i{it_idx}_rm",
+                                         type="secondary", help="Remove item"):
+                                items_to_remove.append(it_idx)
+
+                    # Process removals (reverse order to keep indices valid)
+                    for rm_idx in sorted(items_to_remove, reverse=True):
+                        sec_data['items'].pop(rm_idx)
+                        st.rerun()
+
+                    if st.button("+ Add Item", key=f"e_{rk}_t{t_idx}_c{c_idx}_s{s_idx}_add",
+                                 type="secondary"):
+                        sec_data['items'].append({
+                            'name': '', 'price': None, 'description': None,
+                            'raw': False, 'supplement': None, 'tags': [],
+                        })
+                        st.rerun()
+
+                    flat_sec_idx += 1
+
+    col_save, col_cancel = st.columns(2)
+    with col_save:
+        if st.button("Save Changes", key=f"save_{rk}", type="primary"):
+            _save_edit_data(restaurant_name)
+            st.session_state[f"editing_{rk}"] = False
+            st.rerun()
+    with col_cancel:
+        if st.button("Cancel", key=f"cancel_{rk}", type="secondary"):
+            # Discard edit data
+            edit_key = f"edit_data_{rk}"
+            if edit_key in st.session_state:
+                del st.session_state[edit_key]
+            st.session_state[f"editing_{rk}"] = False
+            st.rerun()
+
+
 # --- Main UI ---
-saved_menus = _get_saved_menus()
-tab_names = list(saved_menus.keys()) + ["Upload"]
+saved_menus = db.list_menus()
+tab_names = [m['restaurant'] for m in saved_menus] + ["Upload"]
 tabs = st.tabs(tab_names)
 
 # Saved menu tabs
-for i, (name, path) in enumerate(saved_menus.items()):
-    with tabs[i]:
-        html_content = path.read_text(encoding="utf-8")
-        components.html(html_content, height=800, scrolling=True)
+for i, menu_record in enumerate(saved_menus):
+    restaurant_name = menu_record['restaurant']
+    editing_key = f"editing_{restaurant_name}"
 
-        _, col_del = st.columns([9, 1])
-        with col_del:
-            if st.button("Delete this menu", key=f"del_{name}", type="secondary"):
-                path.unlink()
-                st.rerun()
+    with tabs[i]:
+        restaurant_model = db.load_menu(restaurant_name)
+
+        if st.session_state.get(editing_key, False) and restaurant_model:
+            # Edit mode
+            _render_edit_view(restaurant_name, restaurant_model)
+        else:
+            # Preview mode
+            if restaurant_model:
+                html_content = render_html(restaurant_model)
+                components.html(html_content, height=800, scrolling=True)
+
+            # Controls row
+            col_edit, col_push, _, col_del = st.columns([2, 3, 4, 1])
+            with col_edit:
+                if restaurant_model and st.button("Edit Menu", key=f"edit_{restaurant_name}"):
+                    st.session_state[editing_key] = True
+                    st.rerun()
+            with col_push:
+                push_val = st.checkbox(
+                    "Push Data",
+                    value=bool(menu_record['push_data']),
+                    key=f"push_{restaurant_name}",
+                )
+                if push_val != bool(menu_record['push_data']):
+                    db.set_push_data(restaurant_name, push_val)
+                    st.rerun()
+            with col_del:
+                if st.button("Delete", key=f"del_{restaurant_name}", type="secondary"):
+                    db.delete_menu(restaurant_name)
+                    st.rerun()
 
 # Upload tab
 with tabs[-1]:
