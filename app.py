@@ -440,32 +440,28 @@ for i, menu_record in enumerate(saved_menus):
 
             # --- Compact toolbar ---
             if restaurant_model:
-                toolbar = st.container()
-                with toolbar:
-                    st.markdown('<div class="toolbar-row">', unsafe_allow_html=True)
-                    c1, c2, c3, c4 = st.columns([1.2, 1.5, 1.2, 0.6], gap="small")
-                    with c1:
-                        if st.button("Edit Menu", key=f"edit_{restaurant_name}"):
-                            st.session_state[editing_key] = True
-                            st.rerun()
-                    with c2:
-                        if st.button("Review Accuracy", key=f"review_{restaurant_name}"):
-                            st.session_state[reviewing_key] = not st.session_state.get(reviewing_key, False)
-                            st.rerun()
-                    with c3:
-                        push_val = st.toggle(
-                            "Push Data",
-                            value=bool(menu_record['push_data']),
-                            key=f"push_{restaurant_name}",
-                        )
-                        if push_val != bool(menu_record['push_data']):
-                            db.set_push_data(restaurant_name, push_val)
-                            st.rerun()
-                    with c4:
-                        if st.button("Delete", key=f"del_{restaurant_name}", type="secondary"):
-                            db.delete_menu(restaurant_name)
-                            st.rerun()
-                    st.markdown('</div>', unsafe_allow_html=True)
+                c1, c2, spacer, c3, c4 = st.columns([1, 1.3, 5, 1.1, 0.6], gap="small")
+                with c1:
+                    if st.button("Edit Menu", key=f"edit_{restaurant_name}"):
+                        st.session_state[editing_key] = True
+                        st.rerun()
+                with c2:
+                    if st.button("Review Accuracy", key=f"review_{restaurant_name}"):
+                        st.session_state[reviewing_key] = not st.session_state.get(reviewing_key, False)
+                        st.rerun()
+                with c3:
+                    push_val = st.toggle(
+                        "Push Data",
+                        value=bool(menu_record['push_data']),
+                        key=f"push_{restaurant_name}",
+                    )
+                    if push_val != bool(menu_record['push_data']):
+                        db.set_push_data(restaurant_name, push_val)
+                        st.rerun()
+                with c4:
+                    if st.button("Delete", key=f"del_{restaurant_name}", type="secondary"):
+                        db.delete_menu(restaurant_name)
+                        st.rerun()
 
             # --- Review Accuracy panel ---
             if st.session_state.get(reviewing_key, False) and restaurant_model:
