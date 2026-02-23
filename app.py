@@ -120,17 +120,7 @@ st.markdown("""
         margin-bottom: 0.5rem;
     }
     [class*="st-key-toolbar_"] [data-testid="stHorizontalBlock"] {
-        gap: 0 !important;
-    }
-    [class*="st-key-toolbar_"] [data-testid="stColumn"]:nth-child(1),
-    [class*="st-key-toolbar_"] [data-testid="stColumn"]:nth-child(2),
-    [class*="st-key-toolbar_"] [data-testid="stColumn"]:nth-child(3) {
-        flex: 0 0 auto !important;
-        width: auto !important;
-        padding-right: 0.5rem !important;
-    }
-    [class*="st-key-toolbar_"] [data-testid="stColumn"]:nth-child(4) {
-        flex: 1 !important;
+        gap: 0.5rem !important;
     }
     [class*="st-key-toolbar_"] button {
         font-family: 'DM Sans', sans-serif !important;
@@ -447,17 +437,17 @@ for i, menu_record in enumerate(saved_menus):
             # --- Compact toolbar ---
             if restaurant_model:
                 with st.container(key=f"toolbar_{restaurant_name}"):
-                    c1, c2, c3, _, c4 = st.columns([1, 1, 1.5, 4, 1.5])
+                    c1, c2, c3, _, c4 = st.columns([1, 1, 1, 4, 1.5])
                     with c1:
-                        if st.button("Edit", key=f"edit_{restaurant_name}"):
+                        if st.button("Edit", key=f"edit_{restaurant_name}", use_container_width=True):
                             st.session_state[editing_key] = True
                             st.rerun()
                     with c2:
-                        if st.button("Delete", key=f"del_{restaurant_name}", type="secondary"):
+                        if st.button("Delete", key=f"del_{restaurant_name}", type="secondary", use_container_width=True):
                             db.delete_menu(restaurant_name)
                             st.rerun()
                     with c3:
-                        if st.button("Review Accuracy", key=f"review_{restaurant_name}"):
+                        if st.button("Review Accuracy", key=f"review_{restaurant_name}", use_container_width=True):
                             st.session_state[reviewing_key] = not st.session_state.get(reviewing_key, False)
                             st.rerun()
                     with c4:
