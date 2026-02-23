@@ -128,6 +128,14 @@ st.markdown("""
         padding: 0.2rem 0.5rem !important;
         min-height: 0 !important;
     }
+    [class*="st-key-toolbar_"] [data-testid="stColumn"]:last-child {
+        display: flex;
+        justify-content: flex-end;
+    }
+    [class*="st-key-toolbar_"] [data-testid="stColumn"]:last-child label {
+        flex-direction: row-reverse !important;
+        gap: 0.4rem;
+    }
 </style>
 """, unsafe_allow_html=True)
 
