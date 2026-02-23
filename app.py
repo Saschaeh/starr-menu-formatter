@@ -43,6 +43,33 @@ st.markdown("""
 
     .stApp { background-color: var(--cream); }
 
+    /* Give all form elements white backgrounds so they don't inherit cream */
+    [data-testid="stTextInput"] input,
+    [data-testid="stTextArea"] textarea,
+    [data-testid="stSelectbox"] [data-baseweb="select"],
+    [data-testid="stNumberInput"] input {
+        background-color: #FFFFFF !important;
+    }
+    /* Primary buttons — gold brand color */
+    .stButton button[kind="primary"],
+    button[data-testid="stBaseButton-primary"] {
+        background-color: var(--gold) !important;
+        border-color: var(--gold) !important;
+        color: #FFFFFF !important;
+    }
+    /* Secondary buttons — clean white with border */
+    .stButton button[kind="secondary"],
+    button[data-testid="stBaseButton-secondary"] {
+        background-color: #FFFFFF !important;
+        border: 1px solid var(--border-light) !important;
+        color: var(--text-dark) !important;
+    }
+    /* Info/alert boxes */
+    [data-testid="stAlert"] {
+        background: #FFFFFF;
+        border-radius: 8px;
+    }
+
     .starr-header {
         background: var(--navy);
         border-top: 3px solid var(--gold);
