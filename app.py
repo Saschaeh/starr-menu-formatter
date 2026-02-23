@@ -121,7 +121,9 @@ st.markdown("""
     }
     [class*="st-key-toolbar_"] button {
         font-family: 'DM Sans', sans-serif !important;
-        font-size: 0.8rem !important;
+        font-size: 0.75rem !important;
+        padding: 0.2rem 0.5rem !important;
+        min-height: 0 !important;
     }
 </style>
 """, unsafe_allow_html=True)
