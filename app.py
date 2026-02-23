@@ -112,23 +112,33 @@ st.markdown("""
     }
     .stTabs [data-baseweb="tab-panel"] { padding: 0; }
 
-    /* Subtle delete button — right-aligned below preview */
-    .delete-row {
+    /* Compact toolbar strip */
+    .toolbar-row {
+        background: #FFFFFF;
+        border: 1px solid var(--border-light);
+        border-radius: 6px;
+        padding: 0.25rem 0.75rem;
+        margin-bottom: 0.75rem;
         display: flex;
-        justify-content: flex-end;
-        margin-top: 0.5rem;
+        align-items: center;
+        gap: 0.5rem;
     }
-    .stTabs [data-baseweb="tab-panel"] button[kind="secondary"] {
-        background: transparent;
-        border: none;
-        color: var(--text-muted);
-        font-family: 'DM Sans', sans-serif;
-        font-size: 0.75rem;
-        padding: 0.25rem 0;
-        opacity: 0.5;
+    .toolbar-row .stColumn { padding: 0 !important; }
+    .toolbar-row button {
+        font-family: 'DM Sans', sans-serif !important;
+        font-size: 0.78rem !important;
+        padding: 0.25rem 0.75rem !important;
+        border-radius: 4px !important;
+        white-space: nowrap !important;
     }
-    .stTabs [data-baseweb="tab-panel"] button[kind="secondary"]:hover {
-        color: #dc3545;
+    .toolbar-row [data-testid="stBaseButton-secondary"] {
+        background: transparent !important;
+        border: none !important;
+        color: var(--text-muted) !important;
+        opacity: 0.7;
+    }
+    .toolbar-row [data-testid="stBaseButton-secondary"]:hover {
+        color: #dc3545 !important;
         opacity: 1;
     }
 </style>
@@ -428,22 +438,21 @@ for i, menu_record in enumerate(saved_menus):
             # Preview mode
             reviewing_key = f"reviewing_{restaurant_name}"
 
-            # --- Controls toolbar (above preview) ---
+            # --- Compact toolbar ---
             if restaurant_model:
-                left, right = st.columns([7, 3])
-                with left:
-                    b1, b2, b3 = st.columns(3)
-                    with b1:
-                        if st.button("Edit Menu", key=f"edit_{restaurant_name}", use_container_width=True):
+                toolbar = st.container()
+                with toolbar:
+                    st.markdown('<div class="toolbar-row">', unsafe_allow_html=True)
+                    c1, c2, c3, c4 = st.columns([1.2, 1.5, 1.2, 0.6], gap="small")
+                    with c1:
+                        if st.button("Edit Menu", key=f"edit_{restaurant_name}"):
                             st.session_state[editing_key] = True
                             st.rerun()
-                    with b2:
-                        if st.button("Review Accuracy", key=f"review_{restaurant_name}", use_container_width=True):
+                    with c2:
+                        if st.button("Review Accuracy", key=f"review_{restaurant_name}"):
                             st.session_state[reviewing_key] = not st.session_state.get(reviewing_key, False)
                             st.rerun()
-                with right:
-                    r1, r2 = st.columns(2)
-                    with r1:
+                    with c3:
                         push_val = st.toggle(
                             "Push Data",
                             value=bool(menu_record['push_data']),
@@ -452,10 +461,11 @@ for i, menu_record in enumerate(saved_menus):
                         if push_val != bool(menu_record['push_data']):
                             db.set_push_data(restaurant_name, push_val)
                             st.rerun()
-                    with r2:
-                        if st.button("Delete", key=f"del_{restaurant_name}", type="secondary", use_container_width=True):
+                    with c4:
+                        if st.button("Delete", key=f"del_{restaurant_name}", type="secondary"):
                             db.delete_menu(restaurant_name)
                             st.rerun()
+                    st.markdown('</div>', unsafe_allow_html=True)
 
             # --- Review Accuracy panel ---
             if st.session_state.get(reviewing_key, False) and restaurant_model:
