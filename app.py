@@ -117,16 +117,14 @@ st.markdown("""
         margin: 0; padding: 0;
     }
     .toolbar-bar {
-        background: #EDEAE4;
-        border-bottom: 1px solid var(--border-light);
+        background: #E5E1D8;
         margin: -1rem -1rem 0.75rem -1rem;
         padding: 0;
     }
     .toolbar-bar + div[data-testid="column"] { margin-top: 0; }
     /* Target the horizontal block right after toolbar-bar marker */
     div[data-testid="stVerticalBlock"]:has(> div .toolbar-bar) > div[data-testid="stHorizontalBlock"]:first-of-type {
-        background: #EDEAE4;
-        border-bottom: 1px solid var(--border-light);
+        background: #E5E1D8;
         padding: 0.35rem 0.75rem;
         margin: 0 -1rem 0.5rem -1rem;
         align-items: center;
