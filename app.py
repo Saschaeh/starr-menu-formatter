@@ -116,15 +116,17 @@ st.markdown("""
     [class*="st-key-toolbar_"] {
         background: #E8EEF4;
         border-bottom: 1px solid #D0DAE4;
-        padding: 0.4rem 0 0.4rem 0.5rem;
+        padding: 0.4rem 0.5rem;
         margin-bottom: 0.5rem;
+    }
+    [class*="st-key-toolbar_"] [data-testid="stHorizontalBlock"] {
+        gap: 0.5rem !important;
     }
     [class*="st-key-toolbar_"] button {
         font-family: 'DM Sans', sans-serif !important;
         font-size: 0.75rem !important;
         padding: 0.2rem 0.5rem !important;
         min-height: 0 !important;
-        max-width: 10rem;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -426,17 +428,17 @@ for i, menu_record in enumerate(saved_menus):
             # --- Compact toolbar ---
             if restaurant_model:
                 with st.container(key=f"toolbar_{restaurant_name}"):
-                    c1, c2, c3, c4 = st.columns(4)
+                    c1, c2, c3, _, c4 = st.columns([1, 1, 1.5, 4, 1.5])
                     with c1:
-                        if st.button("Edit", key=f"edit_{restaurant_name}", use_container_width=True):
+                        if st.button("Edit", key=f"edit_{restaurant_name}"):
                             st.session_state[editing_key] = True
                             st.rerun()
                     with c2:
-                        if st.button("Delete", key=f"del_{restaurant_name}", type="secondary", use_container_width=True):
+                        if st.button("Delete", key=f"del_{restaurant_name}", type="secondary"):
                             db.delete_menu(restaurant_name)
                             st.rerun()
                     with c3:
-                        if st.button("Review Accuracy", key=f"review_{restaurant_name}", use_container_width=True):
+                        if st.button("Review Accuracy", key=f"review_{restaurant_name}"):
                             st.session_state[reviewing_key] = not st.session_state.get(reviewing_key, False)
                             st.rerun()
                     with c4:
