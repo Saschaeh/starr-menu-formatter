@@ -112,6 +112,18 @@ st.markdown("""
     }
     .stTabs [data-baseweb="tab-panel"] { padding: 0; }
 
+    /* Upload status widget */
+    [data-testid="stStatusWidget"] {
+        background: #FFFFFF;
+        border: 1px solid var(--border-light);
+        border-radius: 10px;
+        padding: 1rem;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    }
+    [data-testid="stStatusWidget"] [data-testid="stMarkdown"] {
+        font-family: 'DM Sans', sans-serif;
+    }
+
     /* Toolbar bar */
     [class*="st-key-toolbar_"] {
         background: #E8EEF4;
