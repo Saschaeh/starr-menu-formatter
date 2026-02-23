@@ -161,6 +161,11 @@ def init_db():
             updated_at TEXT NOT NULL
         )
     """)
+    # Migration: add menu_url column for live-site review feature
+    try:
+        _execute("ALTER TABLE menus ADD COLUMN menu_url TEXT")
+    except Exception:
+        pass  # Column already exists
 
 
 # ---------------------------------------------------------------------------
@@ -191,8 +196,8 @@ def load_menu(restaurant_name):
 
 
 def list_menus():
-    """Return list of dicts with restaurant, push_data, updated_at."""
-    return _query("SELECT restaurant, push_data, updated_at FROM menus ORDER BY restaurant")
+    """Return list of dicts with restaurant, push_data, menu_url, updated_at."""
+    return _query("SELECT restaurant, push_data, menu_url, updated_at FROM menus ORDER BY restaurant")
 
 
 def delete_menu(restaurant_name):
@@ -203,6 +208,11 @@ def delete_menu(restaurant_name):
 def set_push_data(restaurant_name, flag):
     """Set the push_data flag for a restaurant menu."""
     _execute("UPDATE menus SET push_data = ? WHERE restaurant = ?", [int(flag), restaurant_name])
+
+
+def set_menu_url(restaurant_name, url):
+    """Set the menu_url for a restaurant (used by live-site review)."""
+    _execute("UPDATE menus SET menu_url = ? WHERE restaurant = ?", [url, restaurant_name])
 
 
 # Initialize on import

@@ -9,9 +9,11 @@ import streamlit.components.v1 as components
 from src.docx_parser import extract_text, filter_menu_content
 from src.models import Restaurant, Tab, Column, Section, MenuItem
 from src.restaurant_config import detect_restaurant
-from src.llm_client import parse_menu
+from src.llm_client import parse_menu, parse_live_menu
 from src.column_balancer import balance_menu
 from src.html_renderer import render_html
+from src.web_scraper import scrape_menu_page
+from src.menu_differ import compare_menus, restaurant_to_parsed_menu, ChangeType
 import db
 
 # --- Page Config ---
@@ -316,6 +318,96 @@ def _render_edit_view(restaurant_name, restaurant_model):
             st.rerun()
 
 
+# --- Review Accuracy helpers ---
+def _render_diff(diff):
+    """Render a MenuDiff as color-coded Streamlit markdown."""
+    # Summary bar
+    parts = []
+    if diff.total_matched:
+        parts.append(f":green[{diff.total_matched} matched]")
+    if diff.total_modified:
+        parts.append(f":orange[{diff.total_modified} changed]")
+    if diff.total_removed:
+        parts.append(f":red[{diff.total_removed} missing]")
+    if diff.total_added:
+        parts.append(f":blue[{diff.total_added} new]")
+    st.markdown(" &nbsp;|&nbsp; ".join(parts) if parts else "No items to compare")
+
+    # Tab-by-tab breakdown
+    for tab_diff in diff.tabs:
+        icon = {
+            ChangeType.matched: ":green[OK]",
+            ChangeType.modified: ":orange[CHANGED]",
+            ChangeType.removed: ":red[MISSING]",
+            ChangeType.added: ":blue[NEW]",
+        }.get(tab_diff.change_type, "")
+
+        with st.expander(f"{icon} **{tab_diff.tab_label}**", expanded=tab_diff.change_type != ChangeType.matched):
+            for sec_diff in tab_diff.section_diffs:
+                sec_icon = {
+                    ChangeType.matched: ":green[OK]",
+                    ChangeType.modified: ":orange[~]",
+                    ChangeType.removed: ":red[-]",
+                    ChangeType.added: ":blue[+]",
+                }.get(sec_diff.change_type, "")
+
+                st.markdown(f"**{sec_icon} {sec_diff.section_title}**")
+
+                for item in sec_diff.item_diffs:
+                    if item.change_type == ChangeType.matched:
+                        st.markdown(f"&emsp; :green[OK] {item.item_name} — {item.doc_price or '—'}")
+                    elif item.change_type == ChangeType.modified:
+                        st.markdown(f"&emsp; :orange[CHANGED] {item.item_name} — {item.details}")
+                    elif item.change_type == ChangeType.removed:
+                        st.markdown(f"&emsp; :red[MISSING] {item.item_name} — {item.doc_price or '—'}")
+                    elif item.change_type == ChangeType.added:
+                        st.markdown(f"&emsp; :blue[NEW] {item.item_name} — {item.live_price or '—'}")
+
+
+def _run_review(restaurant_name, restaurant_model, menu_url, menu_record):
+    """Execute the live-site review flow: scrape → parse → compare → render diff."""
+    with st.status("Checking the live menu...", expanded=True) as status:
+        st.write("Fetching the live site...")
+        try:
+            page_text = scrape_menu_page(menu_url)
+        except Exception as e:
+            status.update(label="Could not fetch the page", state="error")
+            st.error(f"Fetch error: {e}")
+            return
+
+        st.write(f"Got {len(page_text):,} characters of text")
+
+        progress = st.empty()
+
+        def on_progress(msg):
+            progress.write(msg)
+
+        try:
+            live_menu = parse_live_menu(
+                page_text,
+                model=model_id,
+                api_key=api_key if api_key else None,
+                on_progress=on_progress,
+            )
+        except Exception as e:
+            status.update(label="Parsing the live menu failed", state="error")
+            st.error(f"API Error: {e}")
+            return
+
+        progress.empty()
+
+        st.write("Comparing menus...")
+        doc_menu = restaurant_to_parsed_menu(restaurant_model)
+        diff = compare_menus(doc_menu, live_menu)
+
+        # Save URL on success
+        db.set_menu_url(restaurant_name, menu_url)
+
+        status.update(label=f"Review complete — {diff.summary}", state="complete")
+
+    st.session_state[f"review_diff_{restaurant_name}"] = diff.model_dump()
+
+
 # --- Main UI ---
 saved_menus = db.list_menus()
 tab_names = [m['restaurant'] for m in saved_menus] + ["Upload"]
@@ -338,25 +430,64 @@ for i, menu_record in enumerate(saved_menus):
                 html_content = render_html(restaurant_model)
                 components.html(html_content, height=800, scrolling=True)
 
-            # Controls row
-            col_edit, col_push, _, col_del = st.columns([2, 3, 4, 1])
-            with col_edit:
-                if restaurant_model and st.button("Edit Menu", key=f"edit_{restaurant_name}"):
-                    st.session_state[editing_key] = True
-                    st.rerun()
-            with col_push:
-                push_val = st.checkbox(
-                    "Push Data",
-                    value=bool(menu_record['push_data']),
-                    key=f"push_{restaurant_name}",
-                )
-                if push_val != bool(menu_record['push_data']):
-                    db.set_push_data(restaurant_name, push_val)
-                    st.rerun()
-            with col_del:
-                if st.button("Delete", key=f"del_{restaurant_name}", type="secondary"):
-                    db.delete_menu(restaurant_name)
-                    st.rerun()
+            # --- Controls toolbar ---
+            reviewing_key = f"reviewing_{restaurant_name}"
+            if restaurant_model:
+                left, right = st.columns([7, 3])
+                with left:
+                    b1, b2, b3 = st.columns(3)
+                    with b1:
+                        if st.button("Edit Menu", key=f"edit_{restaurant_name}", use_container_width=True):
+                            st.session_state[editing_key] = True
+                            st.rerun()
+                    with b2:
+                        if st.button("Review Accuracy", key=f"review_{restaurant_name}", use_container_width=True):
+                            st.session_state[reviewing_key] = not st.session_state.get(reviewing_key, False)
+                            st.rerun()
+                with right:
+                    r1, r2 = st.columns(2)
+                    with r1:
+                        push_val = st.toggle(
+                            "Push Data",
+                            value=bool(menu_record['push_data']),
+                            key=f"push_{restaurant_name}",
+                        )
+                        if push_val != bool(menu_record['push_data']):
+                            db.set_push_data(restaurant_name, push_val)
+                            st.rerun()
+                    with r2:
+                        if st.button("Delete", key=f"del_{restaurant_name}", type="secondary", use_container_width=True):
+                            db.delete_menu(restaurant_name)
+                            st.rerun()
+
+            # --- Review Accuracy panel ---
+            if st.session_state.get(reviewing_key, False) and restaurant_model:
+                st.markdown("---")
+                url_col, btn_col = st.columns([5, 1])
+                saved_url = menu_record.get('menu_url') or ""
+                with url_col:
+                    menu_url = st.text_input(
+                        "Restaurant menu page URL",
+                        value=saved_url,
+                        key=f"review_url_{restaurant_name}",
+                        placeholder="https://example.com/restaurant/menu",
+                        label_visibility="collapsed",
+                    )
+                with btn_col:
+                    check_clicked = st.button("Check Live Site", key=f"check_{restaurant_name}", type="primary", use_container_width=True)
+
+                if check_clicked:
+                    if not menu_url:
+                        st.warning("Please enter a URL first.")
+                    else:
+                        _run_review(restaurant_name, restaurant_model, menu_url, menu_record)
+
+                # Show diff results if available
+                diff_key = f"review_diff_{restaurant_name}"
+                if diff_key in st.session_state:
+                    from src.menu_differ import MenuDiff
+                    diff = MenuDiff.model_validate(st.session_state[diff_key])
+                    _render_diff(diff)
 
 # Upload tab
 with tabs[-1]:

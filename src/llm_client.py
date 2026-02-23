@@ -102,6 +102,84 @@ or `Item Name*  +$7` then `description`
 """
 
 
+WEB_SYSTEM_PROMPT = """\
+You are a menu data extraction specialist for Starr Restaurants. Your job is to parse a restaurant's live website menu text into structured JSON.
+
+The text was scraped from a web page — it will NOT have markdown formatting like `**bold**` or `## headings`. Instead, section names and tab labels appear as plain text, often in ALL CAPS or Title Case. Use context clues (pricing, item lists) to identify structure.
+
+## Output Schema
+
+Return ONLY valid JSON (no markdown, no code fences):
+
+{
+  "restaurant_name": "Restaurant Name",
+  "tabs": [
+    {
+      "id": "tab-slug",
+      "label": "Tab Label",
+      "description": "Optional tab description text",
+      "sections": [
+        {
+          "title": "Section Name",
+          "note": "Optional subtitle",
+          "items": [
+            {
+              "name": "Item Name",
+              "price": "$29",
+              "description": "item description",
+              "raw": false,
+              "supplement": null,
+              "tags": []
+            }
+          ]
+        }
+      ],
+      "footnote": null
+    }
+  ]
+}
+
+## Parsing Rules
+
+### Tab Detection
+- Look for major menu divisions: Lunch, Dinner, Brunch, Dessert, Beverage, Happy Hour, etc.
+- If the page only has one menu (no tab divisions), create a single tab with id "menu" and label "Menu".
+- Navigation-style labels at the top often indicate available tabs.
+
+### Section Headings
+- Lines in ALL CAPS or Title Case followed by menu items are section headings.
+- Common sections: STARTERS, APPETIZERS, ENTREES, MAINS, SIDES, DESSERTS, COCKTAILS, WINE, etc.
+
+### Menu Items
+- Items typically have a name and a price on the same line or nearby.
+- Descriptions/ingredients may follow on the next line.
+
+### Price Extraction
+- Standard: `$29`, `$198`, `$30 per oz.`
+- Market price: `MP` or `Market Price` → set price to "MP"
+- Supplement/upcharge: `+$7` → "supplement" field
+- Dual prices: `$60 / $80` → keep as-is
+- No price found: set price to null
+
+### Special Markers
+- `*` after item name → set "raw": true
+- Dietary tags (GF), (V), (VG) → "tags" array
+
+### Content to IGNORE
+- Navigation links, "DOWNLOAD PDF", "Click to view..."
+- Footer content, contact info, addresses, phone numbers
+- Social media links, reservation buttons
+- Cookie notices, legal disclaimers
+
+## Important
+- Preserve exact item names, descriptions, and prices
+- Do NOT invent items — only extract what's in the text
+- Keep accent marks and special characters
+- Maintain document order
+- Extract ALL sections including beverages
+"""
+
+
 def _split_into_tabs(text: str) -> list[tuple[str, str]]:
     """Split filtered document text into (heading, content) per tab."""
     lines = text.split("\n")
@@ -264,3 +342,55 @@ def parse_menu(
     parsed = ParsedMenu(restaurant_name=restaurant_name, tabs=tabs)
 
     return parsed, "\n\n".join(raw_responses)
+
+
+def parse_live_menu(
+    text: str,
+    model: str = "claude-sonnet-4-5",
+    api_key: str | None = None,
+    on_progress: callable = None,
+) -> ParsedMenu:
+    """Parse web-scraped menu text into a ParsedMenu via a single API call.
+
+    Args:
+        text: Cleaned text from web_scraper.scrape_menu_page().
+        model: Claude model ID.
+        api_key: Optional API key.
+        on_progress: Optional callback(message) for status updates.
+
+    Returns:
+        ParsedMenu with all tabs/sections/items extracted from the live site.
+    """
+    client = anthropic.Anthropic(api_key=api_key) if api_key else anthropic.Anthropic()
+
+    if on_progress:
+        on_progress("Sending to Claude for parsing...")
+
+    user_prompt = (
+        "Parse this restaurant's live website menu text into structured JSON.\n\n"
+        "<content>\n"
+        f"{text}\n"
+        "</content>"
+    )
+
+    message = client.messages.create(
+        model=model,
+        max_tokens=16384,
+        system=WEB_SYSTEM_PROMPT,
+        messages=[{"role": "user", "content": user_prompt}],
+    )
+
+    raw = message.content[0].text.strip()
+
+    # Strip code fences
+    if raw.startswith("```"):
+        raw = re.sub(r"^```(?:json)?\s*\n?", "", raw)
+        raw = re.sub(r"\n?```\s*$", "", raw)
+
+    data = json.loads(raw)
+    parsed = ParsedMenu.model_validate(data)
+
+    if on_progress:
+        on_progress(f"Parsed {len(parsed.tabs)} tab(s) from live site")
+
+    return parsed
