@@ -13,7 +13,7 @@ from src.llm_client import parse_menu, parse_live_menu
 from src.column_balancer import balance_menu
 from src.html_renderer import render_html
 from src.web_scraper import scrape_menu_page
-from src.menu_differ import compare_menus, restaurant_to_parsed_menu, ChangeType
+from src.menu_differ import compare_menus, restaurant_to_parsed_menu, apply_diff, ChangeType
 import db
 
 # --- Page Config ---
@@ -160,53 +160,73 @@ except Exception:
 
 
 # --- Helpers ---
-def _process_upload(file_bytes: bytes, filename: str) -> None:
-    """Process a .docx file, save to DB, then rerun."""
-    with st.status("Preparing your menu...", expanded=True) as status:
-        st.write("Reading the menu...")
-        raw_text = extract_text(file_bytes)
+def _process_upload(file_bytes: bytes, filename: str, file_id: str) -> None:
+    """Process a .docx file, save to DB, then rerun.
 
-        st.write("Prepping ingredients...")
-        filtered_text = filter_menu_content(raw_text)
+    Uses file_id to avoid re-processing the same upload across Streamlit reruns.
+    """
+    # Already processed this exact upload — nothing to do
+    if st.session_state.get("_processed_file_id") == file_id:
+        return
 
-        st.write("Identifying the kitchen...")
-        config = detect_restaurant(filename, raw_text)
-        st.write(f"Found: **{config.name}**")
+    # Mid-processing rerun — show a simple wait message instead of duplicating
+    if st.session_state.get("_upload_processing"):
+        st.info("Processing your menu — please wait...")
+        st.stop()
 
-        progress = st.empty()
+    st.session_state["_upload_processing"] = True
 
-        def on_progress(tab_name, index, total):
-            progress.write(f"Plating course {index} of {total}: **{tab_name}**...")
+    try:
+        with st.status("Preparing your menu...", expanded=True) as status:
+            bar = st.progress(0, text="Reading the menu...")
+            raw_text = extract_text(file_bytes)
 
-        try:
-            parsed_menu, _ = parse_menu(
-                filtered_text,
-                model=model_id,
-                api_key=api_key if api_key else None,
-                on_progress=on_progress,
+            bar.progress(5, text="Prepping ingredients...")
+            filtered_text = filter_menu_content(raw_text)
+
+            bar.progress(10, text="Identifying the kitchen...")
+            config = detect_restaurant(filename, raw_text)
+            bar.progress(15, text=f"Found **{config.name}** — parsing tabs...")
+
+            def on_progress(tab_name, index, total):
+                # LLM parsing spans 15%–85%
+                pct = 15 + int((index / total) * 70)
+                bar.progress(pct, text=f"Plating course {index} of {total}: **{tab_name}**...")
+
+            try:
+                parsed_menu, _ = parse_menu(
+                    filtered_text,
+                    model=model_id,
+                    api_key=api_key if api_key else None,
+                    on_progress=on_progress,
+                )
+            except Exception as e:
+                status.update(label="Something burned in the kitchen", state="error")
+                st.error(f"API Error: {e}")
+                st.session_state["_upload_processing"] = False
+                st.stop()
+
+            bar.progress(90, text="Arranging the table...")
+            restaurant = balance_menu(
+                parsed_menu,
+                restaurant_name=config.name,
+                slug=config.slug,
+                accent_color=config.accent_color,
+                accent_light=config.accent_light,
             )
-        except Exception as e:
-            status.update(label="Something burned in the kitchen", state="error")
-            st.error(f"API Error: {e}")
-            st.stop()
 
-        progress.empty()
+            bar.progress(95, text="Saving to database...")
+            db.save_menu(config.name, restaurant)
 
-        st.write("Arranging the table...")
-        restaurant = balance_menu(
-            parsed_menu,
-            restaurant_name=config.name,
-            slug=config.slug,
-            accent_color=config.accent_color,
-            accent_light=config.accent_light,
-        )
+            bar.progress(100, text="Done!")
+            status.update(label=f"{config.name} — Bon appétit!", state="complete")
 
-        st.write("Saving to database...")
-        db.save_menu(config.name, restaurant)
+        time.sleep(1.5)
+    finally:
+        st.session_state["_upload_processing"] = False
 
-        status.update(label=f"{config.name} — Bon appétit!", state="complete")
-
-    time.sleep(1.5)
+    # Mark this file as done so reruns don't reprocess it
+    st.session_state["_processed_file_id"] = file_id
     st.rerun()
 
 
@@ -411,6 +431,7 @@ def _run_review(restaurant_name, restaurant_model, menu_url, menu_record):
         status.update(label=f"Review complete — {diff.summary}", state="complete")
 
     st.session_state[f"review_diff_{restaurant_name}"] = diff.model_dump()
+    st.session_state[f"review_live_{restaurant_name}"] = live_menu.model_dump()
 
 
 # --- Main UI ---
@@ -484,8 +505,30 @@ for i, menu_record in enumerate(saved_menus):
                 diff_key = f"review_diff_{restaurant_name}"
                 if diff_key in st.session_state:
                     from src.menu_differ import MenuDiff
+                    from src.models import ParsedMenu
                     diff = MenuDiff.model_validate(st.session_state[diff_key])
                     _render_diff(diff)
+
+                    # Apply Changes button — only when there are actual changes
+                    has_changes = (diff.total_modified + diff.total_added + diff.total_removed) > 0
+                    live_key = f"review_live_{restaurant_name}"
+                    if has_changes and live_key in st.session_state:
+                        if st.button("Apply Changes", key=f"apply_{restaurant_name}", type="primary"):
+                            live_menu = ParsedMenu.model_validate(st.session_state[live_key])
+                            doc_menu = restaurant_to_parsed_menu(restaurant_model)
+                            updated_menu = apply_diff(doc_menu, diff, live_menu)
+                            updated_restaurant = balance_menu(
+                                updated_menu,
+                                restaurant_name=restaurant_model.name,
+                                slug=restaurant_model.slug,
+                                accent_color=restaurant_model.accent_color,
+                                accent_light=restaurant_model.accent_light,
+                            )
+                            db.save_menu(restaurant_name, updated_restaurant)
+                            # Clear review state
+                            del st.session_state[diff_key]
+                            del st.session_state[live_key]
+                            st.rerun()
 
             # --- Menu preview ---
             if restaurant_model:
@@ -501,4 +544,4 @@ with tabs[-1]:
     )
 
     if uploaded_file is not None:
-        _process_upload(uploaded_file.read(), uploaded_file.name)
+        _process_upload(uploaded_file.read(), uploaded_file.name, uploaded_file.file_id)

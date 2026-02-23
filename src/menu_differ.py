@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import re
 from difflib import SequenceMatcher
 from enum import Enum
@@ -390,3 +391,128 @@ def compare_menus(doc_menu: ParsedMenu, live_menu: ParsedMenu) -> MenuDiff:
         total_removed=total_removed,
         total_modified=total_modified,
     )
+
+
+# ---------------------------------------------------------------------------
+# Apply diff — mutate a doc_menu to match live_menu based on a diff
+# ---------------------------------------------------------------------------
+
+def _find_section(tab: ParsedTab, title: str) -> Section | None:
+    """Find a section in a tab by fuzzy title match."""
+    for sec in tab.sections:
+        if _fuzzy_match(sec.title, title, threshold=0.7):
+            return sec
+    return None
+
+
+def _find_item(section: Section, name: str) -> MenuItem | None:
+    """Find an item in a section by fuzzy name match."""
+    for item in section.items:
+        if _fuzzy_match(item.name, name, threshold=0.75):
+            return item
+    return None
+
+
+def _find_tab(menu: ParsedMenu, label: str) -> ParsedTab | None:
+    """Find a tab in a menu by fuzzy label match."""
+    for tab in menu.tabs:
+        if _fuzzy_match(tab.label, label, threshold=0.6):
+            return tab
+    return None
+
+
+def apply_diff(
+    doc_menu: ParsedMenu,
+    diff: MenuDiff,
+    live_menu: ParsedMenu,
+) -> ParsedMenu:
+    """Apply a MenuDiff to doc_menu, pulling new data from live_menu.
+
+    Returns a new ParsedMenu with:
+    - modified items: price/description updated from live values in the diff
+    - removed items: deleted from their sections
+    - added items: copied from live_menu into the matching section
+    - added sections: copied whole from live_menu
+    - added tabs: copied whole from live_menu
+    """
+    result = copy.deepcopy(doc_menu)
+
+    for tab_diff in diff.tabs:
+        if tab_diff.change_type == ChangeType.added:
+            # Whole tab is new — copy from live_menu
+            live_tab = _find_tab(live_menu, tab_diff.tab_label)
+            if live_tab:
+                result.tabs.append(copy.deepcopy(live_tab))
+            continue
+
+        if tab_diff.change_type == ChangeType.removed:
+            # Tab was in doc but not on live site — remove it
+            result.tabs = [
+                t for t in result.tabs
+                if not _fuzzy_match(t.label, tab_diff.tab_label, threshold=0.6)
+            ]
+            continue
+
+        # matched or modified — walk sections
+        doc_tab = _find_tab(result, tab_diff.tab_label)
+        if not doc_tab:
+            continue
+
+        for sec_diff in tab_diff.section_diffs:
+            if sec_diff.change_type == ChangeType.added:
+                # Whole section is new — copy from live_menu
+                live_tab = _find_tab(live_menu, tab_diff.tab_label)
+                if live_tab:
+                    live_sec = _find_section(live_tab, sec_diff.section_title)
+                    if live_sec:
+                        doc_tab.sections.append(copy.deepcopy(live_sec))
+                continue
+
+            if sec_diff.change_type == ChangeType.removed:
+                # Section was in doc but not on live site — remove it
+                doc_tab.sections = [
+                    s for s in doc_tab.sections
+                    if not _fuzzy_match(s.title, sec_diff.section_title, threshold=0.7)
+                ]
+                continue
+
+            # matched or modified — walk items
+            doc_sec = _find_section(doc_tab, sec_diff.section_title)
+            if not doc_sec:
+                continue
+
+            items_to_remove: list[str] = []
+
+            for item_diff in sec_diff.item_diffs:
+                if item_diff.change_type == ChangeType.modified:
+                    doc_item = _find_item(doc_sec, item_diff.item_name)
+                    if doc_item:
+                        if item_diff.live_price is not None:
+                            doc_item.price = item_diff.live_price
+                        if item_diff.live_description is not None:
+                            doc_item.description = item_diff.live_description
+
+                elif item_diff.change_type == ChangeType.removed:
+                    items_to_remove.append(item_diff.item_name)
+
+                elif item_diff.change_type == ChangeType.added:
+                    # Find the item in live_menu and append
+                    live_tab = _find_tab(live_menu, tab_diff.tab_label)
+                    if live_tab:
+                        live_sec = _find_section(live_tab, sec_diff.section_title)
+                        if live_sec:
+                            live_item = _find_item(live_sec, item_diff.item_name)
+                            if live_item:
+                                doc_sec.items.append(copy.deepcopy(live_item))
+
+            # Remove items flagged for deletion
+            if items_to_remove:
+                doc_sec.items = [
+                    it for it in doc_sec.items
+                    if not any(
+                        _fuzzy_match(it.name, name, threshold=0.75)
+                        for name in items_to_remove
+                    )
+                ]
+
+    return result
