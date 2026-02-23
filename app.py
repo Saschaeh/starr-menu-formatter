@@ -131,7 +131,6 @@ st.markdown("""
     [class*="st-key-toolbar_"] [data-testid="stColumn"]:last-child {
         display: flex;
         justify-content: flex-end;
-        padding-right: 0.5rem !important;
     }
     [class*="st-key-toolbar_"] [data-testid="stColumn"]:last-child label {
         flex-direction: row-reverse !important;
@@ -437,7 +436,7 @@ for i, menu_record in enumerate(saved_menus):
             # --- Compact toolbar ---
             if restaurant_model:
                 with st.container(key=f"toolbar_{restaurant_name}"):
-                    c1, c2, c3, _, c4 = st.columns([1, 1, 1, 4, 1.5])
+                    c1, c2, c3, _, c4 = st.columns([1, 1, 1, 5, 1])
                     with c1:
                         if st.button("Edit", key=f"edit_{restaurant_name}", use_container_width=True):
                             st.session_state[editing_key] = True
