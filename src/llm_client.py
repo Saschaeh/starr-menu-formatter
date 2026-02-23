@@ -251,9 +251,9 @@ def parse_menu(
             errors.append(f"{tab_name}: JSON parse error — {e}")
         except anthropic.APIError as e:
             if "credit balance is too low" in str(e):
-                errors.append(f"{tab_name}: Out of AI credits — please top up at console.anthropic.com")
+                errors.append(f"{tab_name}: The kitchen ran out of AI tokens — top up your credits to keep cooking!")
             else:
-                errors.append(f"{tab_name}: API error — {e}")
+                errors.append(f"{tab_name}: Something went wrong in the kitchen — {e}")
 
     if not tabs:
         error_detail = "\n".join(errors) if errors else "No menu items found in any tab."
