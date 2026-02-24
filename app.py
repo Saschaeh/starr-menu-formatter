@@ -11,7 +11,7 @@ from src.models import Restaurant, Tab, Column, Section, MenuItem
 from src.restaurant_config import detect_restaurant
 from src.llm_client import parse_menu, parse_live_menu
 from src.column_balancer import balance_menu
-from src.html_renderer import render_html
+from src.html_renderer import render_html, render_tab_html
 from src.web_scraper import scrape_menu_page
 from src.menu_differ import compare_menus, restaurant_to_parsed_menu, apply_diff, ChangeType
 import db
@@ -266,6 +266,9 @@ def _process_upload(file_bytes: bytes, filename: str, file_id: str) -> None:
 
     # Mark this file as done so reruns don't reprocess it
     st.session_state["_processed_file_id"] = file_id
+    # Auto-select the newly uploaded restaurant
+    st.session_state["selected_restaurant"] = config.name
+    st.session_state["restaurant_selector"] = config.name
     st.rerun()
 
 
@@ -473,109 +476,57 @@ def _run_review(restaurant_name, restaurant_model, menu_url, menu_record):
     st.session_state[f"review_live_{restaurant_name}"] = live_menu.model_dump()
 
 
+# --- Height estimation helper ---
+def _estimate_tab_height(tab):
+    """Estimate pixel height for a single menu tab's content."""
+    max_col_height = 0
+    for col in tab.columns:
+        col_height = 80  # column padding + label
+        for sec in col.sections:
+            col_height += 60  # section title + margin
+            if sec.note:
+                col_height += 30
+            for item in sec.items:
+                h = 40  # name + price row
+                if item.description:
+                    h += 20
+                if item.tags:
+                    h += 24
+                col_height += h
+        max_col_height = max(max_col_height, col_height)
+    height = max_col_height + 80  # body padding
+    if tab.description:
+        height += 70
+    if tab.footnote:
+        height += 80
+    return max(300, height)
+
+
 # --- Main UI ---
 saved_menus = db.list_menus()
-tab_names = [m['restaurant'] for m in saved_menus] + ["Upload"]
-tabs = st.tabs(tab_names)
+restaurant_names = [m['restaurant'] for m in saved_menus]
 
-# Saved menu tabs
-for i, menu_record in enumerate(saved_menus):
-    restaurant_name = menu_record['restaurant']
-    editing_key = f"editing_{restaurant_name}"
+# Build selectbox options
+UPLOAD_OPTION = "+ Upload New Menu"
+options = restaurant_names + [UPLOAD_OPTION] if restaurant_names else [UPLOAD_OPTION]
 
-    with tabs[i]:
-        restaurant_model = db.load_menu(restaurant_name)
+# Determine default selection (auto-select after upload, or first restaurant)
+default_idx = 0
+if "selected_restaurant" in st.session_state:
+    sel = st.session_state["selected_restaurant"]
+    if sel in options:
+        default_idx = options.index(sel)
 
-        if st.session_state.get(editing_key, False) and restaurant_model:
-            # Edit mode
-            _render_edit_view(restaurant_name, restaurant_model)
-        else:
-            # Preview mode
-            reviewing_key = f"reviewing_{restaurant_name}"
+selected = st.selectbox(
+    "Select a restaurant",
+    options,
+    index=default_idx,
+    key="restaurant_selector",
+    label_visibility="collapsed",
+)
 
-            # --- Compact toolbar ---
-            if restaurant_model:
-                with st.container(key=f"toolbar_{restaurant_name}"):
-                    c1, c2, c3, _, c4 = st.columns([1, 1, 1, 5, 1])
-                    with c1:
-                        if st.button("Edit", key=f"edit_{restaurant_name}", use_container_width=True):
-                            st.session_state[editing_key] = True
-                            st.rerun()
-                    with c2:
-                        if st.button("Delete", key=f"del_{restaurant_name}", type="secondary", use_container_width=True):
-                            db.delete_menu(restaurant_name)
-                            st.rerun()
-                    with c3:
-                        if st.button("Review Accuracy", key=f"review_{restaurant_name}", use_container_width=True):
-                            st.session_state[reviewing_key] = not st.session_state.get(reviewing_key, False)
-                            st.rerun()
-                    with c4:
-                        push_val = st.toggle(
-                            "Push Data",
-                            value=bool(menu_record['push_data']),
-                            key=f"push_{restaurant_name}",
-                        )
-                        if push_val != bool(menu_record['push_data']):
-                            db.set_push_data(restaurant_name, push_val)
-                            st.rerun()
-
-            # --- Review Accuracy panel ---
-            if st.session_state.get(reviewing_key, False) and restaurant_model:
-                url_col, btn_col = st.columns([5, 1])
-                saved_url = menu_record.get('menu_url') or ""
-                with url_col:
-                    menu_url = st.text_input(
-                        "Restaurant menu page URL",
-                        value=saved_url,
-                        key=f"review_url_{restaurant_name}",
-                        placeholder="https://example.com/restaurant/menu",
-                        label_visibility="collapsed",
-                    )
-                with btn_col:
-                    check_clicked = st.button("Check Live Site", key=f"check_{restaurant_name}", type="primary", use_container_width=True)
-
-                if check_clicked:
-                    if not menu_url:
-                        st.warning("Please enter a URL first.")
-                    else:
-                        _run_review(restaurant_name, restaurant_model, menu_url, menu_record)
-
-                # Show diff results if available
-                diff_key = f"review_diff_{restaurant_name}"
-                if diff_key in st.session_state:
-                    from src.menu_differ import MenuDiff
-                    from src.models import ParsedMenu
-                    diff = MenuDiff.model_validate(st.session_state[diff_key])
-                    _render_diff(diff)
-
-                    # Apply Changes button — only when there are actual changes
-                    has_changes = (diff.total_modified + diff.total_added + diff.total_removed) > 0
-                    live_key = f"review_live_{restaurant_name}"
-                    if has_changes and live_key in st.session_state:
-                        if st.button("Apply Changes", key=f"apply_{restaurant_name}", type="primary"):
-                            live_menu = ParsedMenu.model_validate(st.session_state[live_key])
-                            doc_menu = restaurant_to_parsed_menu(restaurant_model)
-                            updated_menu = apply_diff(doc_menu, diff, live_menu)
-                            updated_restaurant = balance_menu(
-                                updated_menu,
-                                restaurant_name=restaurant_model.name,
-                                slug=restaurant_model.slug,
-                                accent_color=restaurant_model.accent_color,
-                                accent_light=restaurant_model.accent_light,
-                            )
-                            db.save_menu(restaurant_name, updated_restaurant)
-                            # Clear review state
-                            del st.session_state[diff_key]
-                            del st.session_state[live_key]
-                            st.rerun()
-
-            # --- Menu preview ---
-            if restaurant_model:
-                html_content = render_html(restaurant_model)
-                components.html(html_content, height=800, scrolling=True)
-
-# Upload tab
-with tabs[-1]:
+if selected == UPLOAD_OPTION:
+    # --- Upload view ---
     uploaded_file = st.file_uploader(
         "Drop a .docx menu file here",
         type=["docx"],
@@ -584,3 +535,113 @@ with tabs[-1]:
 
     if uploaded_file is not None:
         _process_upload(uploaded_file.read(), uploaded_file.name, uploaded_file.file_id)
+
+else:
+    # --- Restaurant view ---
+    restaurant_name = selected
+    menu_record = next(m for m in saved_menus if m['restaurant'] == restaurant_name)
+    editing_key = f"editing_{restaurant_name}"
+    restaurant_model = db.load_menu(restaurant_name)
+
+    if st.session_state.get(editing_key, False) and restaurant_model:
+        # Edit mode
+        _render_edit_view(restaurant_name, restaurant_model)
+    else:
+        # Preview mode
+        reviewing_key = f"reviewing_{restaurant_name}"
+
+        # --- Compact toolbar ---
+        if restaurant_model:
+            with st.container(key=f"toolbar_{restaurant_name}"):
+                c1, c2, c3, _, c4 = st.columns([1, 1, 1, 5, 1])
+                with c1:
+                    if st.button("Edit", key=f"edit_{restaurant_name}", use_container_width=True):
+                        st.session_state[editing_key] = True
+                        st.rerun()
+                with c2:
+                    if st.button("Delete", key=f"del_{restaurant_name}", type="secondary", use_container_width=True):
+                        db.delete_menu(restaurant_name)
+                        # Clear selection so selectbox doesn't reference deleted restaurant
+                        for k in ("selected_restaurant", "restaurant_selector"):
+                            st.session_state.pop(k, None)
+                        st.rerun()
+                with c3:
+                    if st.button("Review Accuracy", key=f"review_{restaurant_name}", use_container_width=True):
+                        st.session_state[reviewing_key] = not st.session_state.get(reviewing_key, False)
+                        st.rerun()
+                with c4:
+                    push_val = st.toggle(
+                        "Push Data",
+                        value=bool(menu_record['push_data']),
+                        key=f"push_{restaurant_name}",
+                    )
+                    if push_val != bool(menu_record['push_data']):
+                        db.set_push_data(restaurant_name, push_val)
+                        st.rerun()
+
+        # --- Review Accuracy panel ---
+        if st.session_state.get(reviewing_key, False) and restaurant_model:
+            url_col, btn_col = st.columns([5, 1])
+            saved_url = menu_record.get('menu_url') or ""
+            with url_col:
+                menu_url = st.text_input(
+                    "Restaurant menu page URL",
+                    value=saved_url,
+                    key=f"review_url_{restaurant_name}",
+                    placeholder="https://example.com/restaurant/menu",
+                    label_visibility="collapsed",
+                )
+            with btn_col:
+                check_clicked = st.button("Check Live Site", key=f"check_{restaurant_name}", type="primary", use_container_width=True)
+
+            if check_clicked:
+                if not menu_url:
+                    st.warning("Please enter a URL first.")
+                else:
+                    _run_review(restaurant_name, restaurant_model, menu_url, menu_record)
+
+            # Show diff results if available
+            diff_key = f"review_diff_{restaurant_name}"
+            if diff_key in st.session_state:
+                from src.menu_differ import MenuDiff
+                from src.models import ParsedMenu
+                diff = MenuDiff.model_validate(st.session_state[diff_key])
+                _render_diff(diff)
+
+                # Apply Changes button — only when there are actual changes
+                has_changes = (diff.total_modified + diff.total_added + diff.total_removed) > 0
+                live_key = f"review_live_{restaurant_name}"
+                if has_changes and live_key in st.session_state:
+                    if st.button("Apply Changes", key=f"apply_{restaurant_name}", type="primary"):
+                        live_menu = ParsedMenu.model_validate(st.session_state[live_key])
+                        doc_menu = restaurant_to_parsed_menu(restaurant_model)
+                        updated_menu = apply_diff(doc_menu, diff, live_menu)
+                        updated_restaurant = balance_menu(
+                            updated_menu,
+                            restaurant_name=restaurant_model.name,
+                            slug=restaurant_model.slug,
+                            accent_color=restaurant_model.accent_color,
+                            accent_light=restaurant_model.accent_light,
+                        )
+                        db.save_menu(restaurant_name, updated_restaurant)
+                        # Clear review state
+                        del st.session_state[diff_key]
+                        del st.session_state[live_key]
+                        st.rerun()
+
+        # --- Menu preview (per-tab, no iframe scroll) ---
+        if restaurant_model and restaurant_model.tabs:
+            if len(restaurant_model.tabs) > 1:
+                tab_labels = [t.label for t in restaurant_model.tabs]
+                menu_tabs = st.tabs(tab_labels)
+                for i, tab in enumerate(restaurant_model.tabs):
+                    with menu_tabs[i]:
+                        tab_html = render_tab_html(restaurant_model, tab)
+                        h = _estimate_tab_height(tab)
+                        components.html(tab_html, height=h, scrolling=False)
+            else:
+                # Single tab — render directly, no tab bar needed
+                tab = restaurant_model.tabs[0]
+                tab_html = render_tab_html(restaurant_model, tab)
+                h = _estimate_tab_height(tab)
+                components.html(tab_html, height=h, scrolling=False)

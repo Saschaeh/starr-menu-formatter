@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f7f5f0;
+    --surface: #ffffff;
+    --text: #1a1a1a;
+    --text-muted: #6b6560;
+    --accent: {{ accent_color }};
+    --accent-light: {{ accent_light }};
+    --border: #e0dbd4;
+    --tag-bg: #eee8df;
+    --supplement: #c17b2a;
+    --col-gap: 28px;
+    --section-gap: 28px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    padding: 24px 0;
+  }
+
+  .tab-description {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 24px;
+    margin-bottom: 24px;
+    font-size: 13px;
+    color: var(--text-muted);
+    font-style: italic;
+    border-radius: 8px;
+  }
+
+  .columns {
+    display: grid;
+    gap: var(--col-gap);
+    align-items: start;
+  }
+  .columns-1 { grid-template-columns: 1fr; max-width: 600px; }
+  .columns-2 { grid-template-columns: 1fr 1fr; }
+  .columns-3 { grid-template-columns: 1fr 1fr 1fr; }
+
+  .column {
+    background: var(--surface);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    padding: 24px;
+  }
+
+  .column-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--accent-light);
+    margin-bottom: 20px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .menu-section { margin-bottom: var(--section-gap); }
+  .menu-section:last-child { margin-bottom: 0; }
+
+  .section-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--accent);
+    margin-bottom: 14px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .section-note {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-style: italic;
+    margin-bottom: 12px;
+    line-height: 1.6;
+  }
+
+  .menu-item {
+    margin-bottom: 12px;
+    padding-bottom: 12px;
+    border-bottom: 1px dotted #e8e4dd;
+  }
+  .menu-item:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+
+  .item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+  }
+  .item-name {
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--text);
+  }
+  .item-name .raw-marker {
+    color: var(--accent);
+    font-weight: 400;
+    margin-left: 1px;
+  }
+  .item-price {
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--text);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .item-supplement {
+    color: var(--supplement);
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .item-desc {
+    font-size: 12.5px;
+    color: var(--text-muted);
+    margin-top: 3px;
+    line-height: 1.5;
+  }
+  .item-tags {
+    margin-top: 4px;
+    display: flex;
+    gap: 5px;
+    flex-wrap: wrap;
+  }
+  .tag {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    padding: 2px 7px;
+    border-radius: 3px;
+    background: var(--tag-bg);
+    color: var(--text-muted);
+  }
+
+  .footnotes {
+    margin-top: 32px;
+    padding: 16px 24px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.7;
+  }
+  .footnotes strong { color: var(--text); }
+
+  @media (max-width: 900px) {
+    .columns { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+{% if tab.description %}
+<div class="tab-description">{{ tab.description }}</div>
+{% endif %}
+
+<div class="columns columns-{{ tab.columns | length }}">
+  {% for column in tab.columns %}
+  <div class="column">
+    <div class="column-label">Column {{ loop.index }}</div>
+
+    {% for section in column.sections %}
+    <div class="menu-section">
+      <div class="section-title">{{ section.title }}</div>
+      {% if section.note %}
+      <div class="section-note">{{ section.note }}</div>
+      {% endif %}
+
+      {% for item in section.items %}
+      <div class="menu-item">
+        <div class="item-header">
+          <span class="item-name">{{ item.name }}{% if item.raw %}<span class="raw-marker">*</span>{% endif %}</span>
+          {% if item.supplement %}
+          <span class="item-supplement">{{ item.supplement }}</span>
+          {% endif %}
+          {% if item.price %}
+          <span class="item-price">{{ item.price }}</span>
+          {% endif %}
+        </div>
+        {% if item.description %}
+        <div class="item-desc">{{ item.description }}</div>
+        {% endif %}
+        {% if item.tags %}
+        <div class="item-tags">
+          {% for tag in item.tags %}
+          <span class="tag">{{ tag }}</span>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+</div>
+
+{% if tab.footnote %}
+<div class="footnotes">
+  <strong>*</strong> {{ tab.footnote }}
+</div>
+{% endif %}
+
+<script>
+  function autoHeight() {
+    try {
+      const h = document.documentElement.scrollHeight;
+      const frame = window.frameElement;
+      if (frame) {
+        frame.style.height = h + 'px';
+        if (frame.parentElement) frame.parentElement.style.height = h + 'px';
+      }
+    } catch(e) {}
+  }
+  window.addEventListener('load', autoHeight);
+  new ResizeObserver(autoHeight).observe(document.body);
+</script>
+
+</body>
+</html>
