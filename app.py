@@ -11,7 +11,7 @@ from src.models import Restaurant, Tab, Column, Section, MenuItem
 from src.restaurant_config import detect_restaurant
 from src.llm_client import parse_menu, parse_live_menu
 from src.column_balancer import balance_menu
-from src.html_renderer import render_html, render_tab_html
+from src.html_renderer import render_html
 from src.web_scraper import scrape_menu_page
 from src.menu_differ import compare_menus, restaurant_to_parsed_menu, apply_diff, ChangeType
 import db
@@ -474,6 +474,21 @@ def _run_review(restaurant_name, restaurant_model, menu_url, menu_record):
 
     st.session_state[f"review_diff_{restaurant_name}"] = diff.model_dump()
     st.session_state[f"review_live_{restaurant_name}"] = live_menu.model_dump()
+
+
+# --- Tab rendering helper ---
+def render_tab_html(restaurant, tab):
+    """Render a single tab as a self-contained HTML fragment for inline preview."""
+    import os
+    from jinja2 import Environment, FileSystemLoader
+    template_dir = os.path.join(os.path.dirname(__file__), "templates")
+    env = Environment(loader=FileSystemLoader(template_dir), autoescape=False)
+    template = env.get_template("menu_tab_template.html")
+    return template.render(
+        tab=tab,
+        accent_color=restaurant.accent_color,
+        accent_light=restaurant.accent_light,
+    )
 
 
 # --- Height estimation helper ---
