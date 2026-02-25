@@ -2,13 +2,20 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class MenuItem(BaseModel):
     """A single menu item (dish, drink, etc.)."""
 
     name: str
+
+    @field_validator("name")
+    @classmethod
+    def name_must_not_be_empty(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("MenuItem name cannot be empty")
+        return v
     price: str | None = None
     description: str | None = None
     raw: bool = False
