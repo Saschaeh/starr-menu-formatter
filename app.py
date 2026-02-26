@@ -225,6 +225,24 @@ def _process_upload(file_bytes: bytes, filename: str, file_id: str) -> None:
 
             bar.progress(10, text="Identifying the kitchen...")
             config = detect_restaurant(filename, raw_text)
+
+            # Check for existing restaurant — warn before spending API credits
+            existing = db.load_menu(config.name)
+            if existing and not st.session_state.get("_overwrite_confirmed"):
+                status.update(label=f"**{config.name}** already exists", state="error")
+                st.warning(
+                    f"**{config.name}** is already in the database. "
+                    "Re-uploading will overwrite the existing menu."
+                )
+                if st.button("Overwrite Existing Menu", type="primary"):
+                    st.session_state["_overwrite_confirmed"] = True
+                    st.rerun()
+                st.session_state["_upload_processing"] = False
+                st.stop()
+
+            # Clear overwrite flag once we proceed
+            st.session_state.pop("_overwrite_confirmed", None)
+
             bar.progress(15, text=f"Found **{config.name}** — parsing tabs...")
 
             def on_progress(tab_name, index, total):
@@ -268,7 +286,6 @@ def _process_upload(file_bytes: bytes, filename: str, file_id: str) -> None:
     st.session_state["_processed_file_id"] = file_id
     # Auto-select the newly uploaded restaurant
     st.session_state["selected_restaurant"] = config.name
-    st.session_state["restaurant_selector"] = config.name
     st.rerun()
 
 
@@ -482,7 +499,7 @@ def render_tab_html(restaurant, tab):
     import os
     from jinja2 import Environment, FileSystemLoader
     template_dir = os.path.join(os.path.dirname(__file__), "templates")
-    env = Environment(loader=FileSystemLoader(template_dir), autoescape=False)
+    env = Environment(loader=FileSystemLoader(template_dir), autoescape=True)
     template = env.get_template("menu_tab_template.html")
     return template.render(
         tab=tab,
@@ -574,12 +591,18 @@ else:
                         st.session_state[editing_key] = True
                         st.rerun()
                 with c2:
-                    if st.button("Delete", key=f"del_{restaurant_name}", type="secondary", use_container_width=True):
-                        db.delete_menu(restaurant_name)
-                        # Clear selection so selectbox doesn't reference deleted restaurant
-                        for k in ("selected_restaurant", "restaurant_selector"):
-                            st.session_state.pop(k, None)
-                        st.rerun()
+                    confirm_key = f"confirm_del_{restaurant_name}"
+                    if st.session_state.get(confirm_key, False):
+                        # Confirmation step — show "Confirm?" in red
+                        if st.button("Confirm?", key=f"del_confirm_{restaurant_name}", type="primary", use_container_width=True):
+                            db.delete_menu(restaurant_name)
+                            st.session_state.pop(confirm_key, None)
+                            st.session_state.pop("selected_restaurant", None)
+                            st.rerun()
+                    else:
+                        if st.button("Delete", key=f"del_{restaurant_name}", type="secondary", use_container_width=True):
+                            st.session_state[confirm_key] = True
+                            st.rerun()
                 with c3:
                     if st.button("Review Accuracy", key=f"review_{restaurant_name}", use_container_width=True):
                         st.session_state[reviewing_key] = not st.session_state.get(reviewing_key, False)
@@ -627,7 +650,17 @@ else:
                 has_changes = (diff.total_modified + diff.total_added + diff.total_removed) > 0
                 live_key = f"review_live_{restaurant_name}"
                 if has_changes and live_key in st.session_state:
+                    # Show destructive change warning if items/sections/tabs are being removed
+                    if diff.total_removed > 0:
+                        st.warning(
+                            f"This will **remove {diff.total_removed} item(s)** from the menu. "
+                            "A backup will be saved automatically."
+                        )
                     if st.button("Apply Changes", key=f"apply_{restaurant_name}", type="primary"):
+                        # Save backup of current state before modifying
+                        backup_key = f"backup_{restaurant_name}"
+                        st.session_state[backup_key] = restaurant_model.model_dump_json()
+
                         live_menu = ParsedMenu.model_validate(st.session_state[live_key])
                         doc_menu = restaurant_to_parsed_menu(restaurant_model)
                         updated_menu = apply_diff(doc_menu, diff, live_menu)
@@ -643,6 +676,15 @@ else:
                         del st.session_state[diff_key]
                         del st.session_state[live_key]
                         st.rerun()
+
+        # --- Undo button for review changes ---
+        backup_key = f"backup_{restaurant_name}"
+        if backup_key in st.session_state:
+            if st.button("Undo Last Review Changes", key=f"undo_{restaurant_name}", type="secondary"):
+                restored = Restaurant.model_validate_json(st.session_state[backup_key])
+                db.save_menu(restaurant_name, restored)
+                del st.session_state[backup_key]
+                st.rerun()
 
         # --- Menu preview (per-tab, no iframe scroll) ---
         if restaurant_model and restaurant_model.tabs:

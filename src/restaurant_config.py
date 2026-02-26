@@ -64,33 +64,34 @@ RESTAURANTS: dict[str, RestaurantConfig] = {
 def detect_restaurant(filename: str, text: str) -> RestaurantConfig:
     """Detect restaurant from filename or document content.
 
-    Tries filename first, then scans first 500 chars of content.
-    Falls back to generating config from filename.
+    The restaurant name always matches the document filename (minus extension).
+    Accent colours come from known configs if matched, otherwise use defaults.
     """
-    # Clean filename (remove extension)
+    # Clean filename (remove extension) — this IS the restaurant name
     name_base = re.sub(r"\.(docx?|pdf)$", "", filename, flags=re.IGNORECASE).strip()
-
-    # Try exact match on filename
-    key = name_base.lower()
-    if key in RESTAURANTS:
-        return RESTAURANTS[key]
-
-    # Try substring match on filename
-    for rkey, config in RESTAURANTS.items():
-        if rkey in key or key in rkey:
-            return config
-
-    # Try matching against document text
-    text_lower = text[:500].lower()
-    for rkey, config in RESTAURANTS.items():
-        if rkey in text_lower:
-            return config
-
-    # Fallback: generate from filename
     slug = re.sub(r"[^a-z0-9]+", "-", name_base.lower()).strip("-")
+
+    # Try to find a matching config for colours
+    key = name_base.lower()
+    matched: RestaurantConfig | None = None
+
+    if key in RESTAURANTS:
+        matched = RESTAURANTS[key]
+    else:
+        for rkey, config in RESTAURANTS.items():
+            if rkey in key or key in rkey:
+                matched = config
+                break
+        if not matched:
+            text_lower = text[:500].lower()
+            for rkey, config in RESTAURANTS.items():
+                if rkey in text_lower:
+                    matched = config
+                    break
+
     return RestaurantConfig(
-        name=name_base.title(),
+        name=name_base,
         slug=slug or "unknown",
-        accent_color="#c8102e",
-        accent_light="#fef2f2",
+        accent_color=matched.accent_color if matched else "#c8102e",
+        accent_light=matched.accent_light if matched else "#fef2f2",
     )

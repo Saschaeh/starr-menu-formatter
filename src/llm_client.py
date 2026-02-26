@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+import time
 
 import anthropic
 
@@ -263,12 +264,27 @@ def _parse_single_tab(
 
     user_prompt = f"Parse this menu tab into structured JSON:\n\nTab heading: {heading}\n\n<content>\n{content}\n</content>"
 
-    message = client.messages.create(
-        model=model,
-        max_tokens=8192,
-        system=SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": user_prompt}],
-    )
+    # Retry with exponential backoff on transient API errors
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            message = client.messages.create(
+                model=model,
+                max_tokens=8192,
+                system=SYSTEM_PROMPT,
+                messages=[{"role": "user", "content": user_prompt}],
+            )
+            break
+        except anthropic.RateLimitError:
+            if attempt < max_retries - 1:
+                time.sleep(2 ** (attempt + 1))
+                continue
+            raise
+        except anthropic.APIStatusError as e:
+            if e.status_code in (503, 529) and attempt < max_retries - 1:
+                time.sleep(2 ** (attempt + 1))
+                continue
+            raise
 
     raw = message.content[0].text.strip()
 
@@ -290,7 +306,7 @@ def _parse_single_tab(
 
 def parse_menu(
     text: str,
-    model: str = "claude-3-haiku-20240307",
+    model: str = "claude-sonnet-4-5",
     api_key: str | None = None,
     on_progress: callable = None,
 ) -> tuple[ParsedMenu, str]:
@@ -336,6 +352,14 @@ def parse_menu(
     if not tabs:
         error_detail = "\n".join(errors) if errors else "No menu items found in any tab."
         raise ValueError(f"No tabs with menu items were parsed.\n{error_detail}")
+
+    # Surface partial errors alongside successful results
+    if errors:
+        import warnings
+        warnings.warn(
+            f"{len(errors)} tab(s) failed to parse: " + "; ".join(errors),
+            stacklevel=2,
+        )
 
     # Extract restaurant name from first tab or heading
     restaurant_name = tab_chunks[0][0].replace("## ", "").split("Page")[0].strip().rstrip(":")

@@ -16,7 +16,7 @@ def render_html(restaurant: Restaurant) -> str:
     """Render a Restaurant model into a complete, self-contained HTML string."""
     env = Environment(
         loader=FileSystemLoader(_TEMPLATE_DIR),
-        autoescape=False,
+        autoescape=True,
     )
     template = env.get_template("menu_template.html")
     return template.render(restaurant=restaurant)

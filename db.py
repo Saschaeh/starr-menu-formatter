@@ -164,8 +164,12 @@ def init_db():
     # Migration: add menu_url column for live-site review feature
     try:
         _execute("ALTER TABLE menus ADD COLUMN menu_url TEXT")
-    except Exception:
-        pass  # Column already exists
+    except Exception as e:
+        # Ignore "column already exists" (SQLite: "duplicate column", Turso: similar)
+        if "duplicate" in str(e).lower() or "already exists" in str(e).lower():
+            pass
+        else:
+            raise
 
 
 # ---------------------------------------------------------------------------
