@@ -80,8 +80,11 @@ def _turso_execute(sql: str, args: list | None = None) -> list[dict]:
     with urllib.request.urlopen(req, timeout=30) as resp:
         data = json.loads(resp.read())
 
-    # Parse response
-    result = data["results"][0]["response"]["result"]
+    # Parse response — Turso returns "error" instead of "response" on failure
+    resp_obj = data["results"][0]
+    if "error" in resp_obj:
+        raise RuntimeError(resp_obj["error"].get("message", str(resp_obj["error"])))
+    result = resp_obj["response"]["result"]
     cols = [c["name"] for c in result["cols"]]
     rows = []
     for row in result["rows"]:
