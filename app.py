@@ -230,7 +230,16 @@ st.markdown("""
     .dash-col .upload-link:hover {
         color: var(--navy);
     }
-    /* Back button */
+    /* Back button — kill container box and button chrome */
+    [class*="st-key-back_btn"],
+    [class*="st-key-back_btn"] [data-testid="stVerticalBlockBorderWrapper"] {
+        border: none !important;
+        background: none !important;
+        box-shadow: none !important;
+        outline: none !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
     [class*="st-key-back_btn"] button {
         background: none !important;
         border: none !important;
@@ -677,7 +686,7 @@ if selected_restaurant is None:
                             date_str = _fmt_date(m.get('updated_at'))
                             date_part = f'<span class="r-date">{date_str}</span>' if date_str else ''
                             html.append(
-                                f'<a class="r-link" href="{href}">'
+                                f'<a class="r-link" href="{href}" target="_self">'
                                 f'<span class="r-name">{dname}</span>'
                                 f'{date_part}'
                                 f'</a>'
@@ -685,7 +694,7 @@ if selected_restaurant is None:
                         html.append('</div>')
                     # Upload link at the bottom of the last column
                     if col_idx == 2:
-                        html.append('<a class="upload-link" href="?r=__upload__">+ Upload New Menu</a>')
+                        html.append('<a class="upload-link" href="?r=__upload__" target="_self">+ Upload New Menu</a>')
                     html.append('</div>')
                     st.markdown('\n'.join(html), unsafe_allow_html=True)
 
