@@ -253,6 +253,41 @@ st.markdown("""
     [class*="st-key-back_btn"] button:hover {
         color: var(--gold) !important;
     }
+
+    /* Detail page — restaurant header */
+    .detail-header {
+        margin: 0.5rem 0 1.5rem 0;
+        padding-bottom: 1.25rem;
+        border-bottom: 2px solid var(--gold);
+    }
+    .detail-header h2 {
+        font-family: 'Playfair Display', Georgia, serif;
+        color: var(--navy);
+        font-size: 1.6rem;
+        font-weight: 700;
+        margin: 0;
+        line-height: 1.2;
+    }
+    .detail-header .detail-city {
+        font-family: 'DM Sans', sans-serif;
+        font-size: 0.75rem;
+        font-weight: 600;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--text-muted);
+        margin-top: 0.3rem;
+    }
+
+    /* Detail page — toolbar breathing room */
+    [class*="st-key-toolbar_"] {
+        border-radius: 6px;
+        margin-bottom: 1.25rem !important;
+    }
+
+    /* Detail page — space above menu preview tabs */
+    .stTabs {
+        margin-top: 0.25rem;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -721,7 +756,15 @@ else:
         if st.button("← All Restaurants", key="back_to_dash"):
             st.session_state.pop("selected_restaurant", None)
             st.rerun()
-    st.markdown(f"### {display_name(restaurant_name)}")
+    _city = get_city(restaurant_name)
+    _city_html = f'<div class="detail-city">{_city}</div>' if _city != "Other" else ""
+    st.markdown(
+        f'<div class="detail-header">'
+        f'<h2>{display_name(restaurant_name)}</h2>'
+        f'{_city_html}'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
     menu_record = next(m for m in saved_menus if m['restaurant'] == restaurant_name)
     editing_key = f"editing_{restaurant_name}"
     restaurant_model = db.load_menu(restaurant_name)
