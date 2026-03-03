@@ -179,10 +179,11 @@ st.markdown("""
     }
 
     /* Dashboard — tighter column gap */
+    /* Dashboard — tight columns */
     [class*="st-key-dash_grid"] [data-testid="stHorizontalBlock"] {
-        gap: 1.5rem !important;
+        gap: 1rem !important;
     }
-    /* City label — compact uppercase */
+    /* City label */
     .city-label {
         font-family: 'DM Sans', sans-serif;
         font-size: 0.65rem;
@@ -190,46 +191,49 @@ st.markdown("""
         letter-spacing: 0.12em;
         text-transform: uppercase;
         color: var(--text-muted);
-        margin: 0 0 0.15rem 0;
+        margin: 0 0 0.1rem 0;
         padding: 0;
     }
-    .city-group { margin-bottom: 1rem; }
-    /* Restaurant row buttons — stripped to plain text */
-    [class*="st-key-r_"],
-    [class*="st-key-r_"] [data-testid="stVerticalBlockBorderWrapper"] {
+    .city-group { margin-bottom: 0.8rem; }
+    /* Kill ALL spacing around dashboard buttons */
+    [class*="st-key-dash_grid"] .stButton {
         margin: 0 !important;
         padding: 0 !important;
-        border: none !important;
-        background: none !important;
-        box-shadow: none !important;
-        outline: none !important;
     }
-    [class*="st-key-r_"] button {
+    [class*="st-key-dash_grid"] .stButton > div {
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    [class*="st-key-dash_grid"] button[kind="secondary"],
+    [class*="st-key-dash_grid"] button[data-testid="stBaseButton-secondary"] {
         background: none !important;
         border: none !important;
         box-shadow: none !important;
         outline: none !important;
+        text-decoration: none !important;
         text-align: left !important;
-        padding: 0.1rem 0 !important;
+        padding: 0.15rem 0 !important;
         min-height: 0 !important;
         height: auto !important;
         font-family: 'DM Sans', sans-serif !important;
         font-size: 0.88rem !important;
         font-weight: 500 !important;
         color: var(--text-dark) !important;
-        width: 100% !important;
+        width: auto !important;
         justify-content: flex-start !important;
         border-radius: 0 !important;
         line-height: 1.3 !important;
     }
-    [class*="st-key-r_"] button:hover {
+    [class*="st-key-dash_grid"] button:hover {
         color: var(--gold) !important;
         background: none !important;
+        text-decoration: none !important;
     }
-    [class*="st-key-r_"] button p {
+    [class*="st-key-dash_grid"] button p {
         font-size: 0.88rem !important;
         margin: 0 !important;
         line-height: 1.3 !important;
+        text-decoration: none !important;
     }
     /* Back button */
     [class*="st-key-back_btn"] button {
@@ -663,10 +667,9 @@ if selected_restaurant is None:
                         )
                         for m in city_groups[city]:
                             name = m['restaurant']
-                            with st.container(key=f"r_{name}"):
-                                if st.button(display_name(name), key=f"go_{name}"):
-                                    st.session_state["selected_restaurant"] = name
-                                    st.rerun()
+                            if st.button(display_name(name), key=f"go_{name}"):
+                                st.session_state["selected_restaurant"] = name
+                                st.rerun()
 
 elif selected_restaurant == "__upload__":
     # --- Upload view ---
