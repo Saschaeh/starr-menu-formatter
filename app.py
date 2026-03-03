@@ -195,20 +195,22 @@ st.markdown("""
     }
     .city-group { margin-bottom: 1rem; }
     /* Restaurant row buttons — stripped to plain text */
-    [class*="st-key-r_"] {
-        margin: 0 !important;
-        padding: 0 !important;
-    }
+    [class*="st-key-r_"],
     [class*="st-key-r_"] [data-testid="stVerticalBlockBorderWrapper"] {
-        padding: 0 !important;
         margin: 0 !important;
+        padding: 0 !important;
+        border: none !important;
+        background: none !important;
+        box-shadow: none !important;
+        outline: none !important;
     }
     [class*="st-key-r_"] button {
         background: none !important;
         border: none !important;
         box-shadow: none !important;
+        outline: none !important;
         text-align: left !important;
-        padding: 0.12rem 0.25rem !important;
+        padding: 0.1rem 0 !important;
         min-height: 0 !important;
         height: auto !important;
         font-family: 'DM Sans', sans-serif !important;
@@ -217,12 +219,12 @@ st.markdown("""
         color: var(--text-dark) !important;
         width: 100% !important;
         justify-content: flex-start !important;
-        border-radius: 3px !important;
+        border-radius: 0 !important;
         line-height: 1.3 !important;
     }
     [class*="st-key-r_"] button:hover {
         color: var(--gold) !important;
-        background: rgba(197, 165, 90, 0.08) !important;
+        background: none !important;
     }
     [class*="st-key-r_"] button p {
         font-size: 0.88rem !important;
@@ -618,16 +620,6 @@ if (selected_restaurant
 
 if selected_restaurant is None:
     # --- Dashboard view ---
-    def _fmt_date(iso_str):
-        """Format an ISO date string as short date like 'Mar 1'."""
-        if not iso_str:
-            return ""
-        try:
-            dt = datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
-            return f"{dt.strftime('%b')} {dt.day}"
-        except Exception:
-            return ""
-
     # Upload button top-right
     _, btn_col = st.columns([5, 1])
     with btn_col:
@@ -671,11 +663,8 @@ if selected_restaurant is None:
                         )
                         for m in city_groups[city]:
                             name = m['restaurant']
-                            dname = display_name(name)
-                            date_str = _fmt_date(m.get('updated_at'))
-                            label = f"{dname}  ·  {date_str}" if date_str else dname
                             with st.container(key=f"r_{name}"):
-                                if st.button(label, key=f"go_{name}"):
+                                if st.button(display_name(name), key=f"go_{name}"):
                                     st.session_state["selected_restaurant"] = name
                                     st.rerun()
 
