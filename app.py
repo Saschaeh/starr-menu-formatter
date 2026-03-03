@@ -76,8 +76,8 @@ st.markdown("""
         background: var(--navy);
         border-top: 3px solid var(--gold);
         border-bottom: 3px solid var(--gold);
-        padding: 1.5rem 2.5rem 1rem;
-        margin: -1rem -1rem 1rem -1rem;
+        padding: 2rem 2.5rem 1.5rem;
+        margin: -1rem -1rem 2rem -1rem;
         position: relative;
     }
     .starr-header h1 {
@@ -178,7 +178,10 @@ st.markdown("""
         gap: 0.4rem;
     }
 
-    /* Dashboard grid */
+    /* Dashboard grid — pull columns closer */
+    [class*="st-key-dash_grid"] [data-testid="stHorizontalBlock"] {
+        max-width: 900px;
+    }
     .dash-col {
         font-family: 'DM Sans', sans-serif;
     }
@@ -650,28 +653,29 @@ if selected_restaurant is None:
 
         # Render each column as a single HTML block — no Streamlit widgets
         import urllib.parse
-        cols = st.columns(3, gap="small")
-        for col_idx, col in enumerate(cols):
-            with col:
-                html = ['<div class="dash-col">']
-                for city in col_assignments[col_idx]:
-                    html.append(f'<div class="city-group">')
-                    html.append(f'<p class="city-label">{city}</p>')
-                    for m in city_groups[city]:
-                        name = m['restaurant']
-                        dname = display_name(name)
-                        href = f"?r={urllib.parse.quote(name)}"
-                        date_str = _fmt_date(m.get('updated_at'))
-                        date_part = f'<span class="r-date">{date_str}</span>' if date_str else ''
-                        html.append(
-                            f'<a class="r-link" href="{href}">'
-                            f'<span class="r-name">{dname}</span>'
-                            f'{date_part}'
-                            f'</a>'
-                        )
+        with st.container(key="dash_grid"):
+            cols = st.columns(3, gap="small")
+            for col_idx, col in enumerate(cols):
+                with col:
+                    html = ['<div class="dash-col">']
+                    for city in col_assignments[col_idx]:
+                        html.append(f'<div class="city-group">')
+                        html.append(f'<p class="city-label">{city}</p>')
+                        for m in city_groups[city]:
+                            name = m['restaurant']
+                            dname = display_name(name)
+                            href = f"?r={urllib.parse.quote(name)}"
+                            date_str = _fmt_date(m.get('updated_at'))
+                            date_part = f'<span class="r-date">{date_str}</span>' if date_str else ''
+                            html.append(
+                                f'<a class="r-link" href="{href}">'
+                                f'<span class="r-name">{dname}</span>'
+                                f'{date_part}'
+                                f'</a>'
+                            )
+                        html.append('</div>')
                     html.append('</div>')
-                html.append('</div>')
-                st.markdown('\n'.join(html), unsafe_allow_html=True)
+                    st.markdown('\n'.join(html), unsafe_allow_html=True)
 
 elif selected_restaurant == "__upload__":
     # --- Upload view ---
