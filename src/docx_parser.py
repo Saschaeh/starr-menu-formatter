@@ -38,11 +38,16 @@ def extract_text(file_bytes: bytes) -> str:
 
     Returns markdown-style annotated text:
     - # Title for H1/Title
-    - ## Tab Name for H2
+    - ## Tab Name for H2 (or H3 if no H2s exist)
     - **Bold text** for bold runs
     - Regular text as-is
     """
     doc = Document(BytesIO(file_bytes))
+
+    # Determine tab heading level: use H2 if present, fall back to H3
+    has_h2 = any(_get_heading_level(p) == 2 for p in doc.paragraphs)
+    tab_level = 2 if has_h2 else 3
+
     lines: list[str] = []
     in_menu_section = False
 
@@ -60,7 +65,7 @@ def extract_text(file_bytes: bytes) -> str:
                 in_menu_section = True
             lines.append(f"# {text}")
             continue
-        if heading == 2:
+        if heading == tab_level:
             lines.append(f"## {text}")
             continue
 
