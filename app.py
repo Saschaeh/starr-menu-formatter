@@ -721,6 +721,7 @@ else:
         if st.button("← All Restaurants", key="back_to_dash"):
             st.session_state.pop("selected_restaurant", None)
             st.rerun()
+    st.markdown(f"### {display_name(restaurant_name)}")
     menu_record = next(m for m in saved_menus if m['restaurant'] == restaurant_name)
     editing_key = f"editing_{restaurant_name}"
     restaurant_model = db.load_menu(restaurant_name)
