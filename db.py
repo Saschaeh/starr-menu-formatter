@@ -204,7 +204,11 @@ def load_menu(restaurant_name):
 
 def list_menus():
     """Return list of dicts with restaurant, push_data, menu_url, updated_at."""
-    return _query("SELECT restaurant, push_data, menu_url, updated_at FROM menus ORDER BY restaurant")
+    return _query(
+        "SELECT restaurant, push_data, menu_url, updated_at,"
+        " json_array_length(menu_json, '$.tabs') as tab_count"
+        " FROM menus ORDER BY restaurant"
+    )
 
 
 def delete_menu(restaurant_name):

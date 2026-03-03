@@ -52,13 +52,59 @@ RESTAURANTS: dict[str, RestaurantConfig] = {
         accent_color="#d4a017",
         accent_light="#fefbf0",
     ),
-    "el vez": RestaurantConfig(
-        name="El Vez",
-        slug="el-vez",
-        accent_color="#d4a017",
-        accent_light="#fefbf0",
-    ),
 }
+
+
+CITY_ORDER = ["New York", "Philadelphia", "Florida", "Nashville", "Washington D.C."]
+
+RESTAURANT_CITIES = {
+    # New York
+    "borromini new": "New York",
+    "buddakan nyc": "New York",
+    "el vez nyc": "New York",
+    "electric lemon": "New York",
+    "lecafe_menu": "New York",
+    "le coucou": "New York",
+    "lmno": "New York",
+    "pastis nyc": "New York",
+    "the clocktower": "New York",
+    "upland": "New York",
+    # Philadelphia
+    "barclay prime": "Philadelphia",
+    "buddakan pa": "Philadelphia",
+    "butcher and singer": "Philadelphia",
+    "the continental mid town": "Philadelphia",
+    "el rey": "Philadelphia",
+    "el vez philadelphia": "Philadelphia",
+    "fette sau": "Philadelphia",
+    "frankford hall": "Philadelphia",
+    "morimoto": "Philadelphia",
+    "parc": "Philadelphia",
+    "pizzeria stella": "Philadelphia",
+    "talulas garden": "Philadelphia",
+    "talulas daily": "Philadelphia",
+    "the dandelion": "Philadelphia",
+    "the love": "Philadelphia",
+    # Florida
+    "el vez ft lauderdale": "Florida",
+    "makoto": "Florida",
+    "osteria mozza": "Florida",
+    "pastis  wynwood": "Florida",
+    "pastis miami": "Florida",
+    "steak 954": "Florida",
+    # Nashville
+    "pastis nashville": "Nashville",
+    # Washington D.C.
+    "le diplomate": "Washington D.C.",
+    "pastis dc": "Washington D.C.",
+    "st. anselm": "Washington D.C.",
+    "the occidental": "Washington D.C.",
+}
+
+
+def get_city(restaurant_name: str) -> str:
+    """Return the city for a restaurant name, or 'Other' if unknown."""
+    return RESTAURANT_CITIES.get(restaurant_name.lower(), "Other")
 
 
 def detect_restaurant(filename: str, text: str) -> RestaurantConfig:

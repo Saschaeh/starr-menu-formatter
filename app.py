@@ -2,13 +2,14 @@
 
 import copy
 import time
+from collections import defaultdict
 
 import streamlit as st
 import streamlit.components.v1 as components
 
 from src.docx_parser import extract_text, filter_menu_content
 from src.models import Restaurant, Tab, Column, Section, MenuItem
-from src.restaurant_config import detect_restaurant
+from src.restaurant_config import detect_restaurant, get_city, CITY_ORDER
 from src.llm_client import parse_menu, parse_live_menu
 from src.column_balancer import balance_menu
 from src.html_renderer import render_html
@@ -174,6 +175,60 @@ st.markdown("""
     [class*="st-key-toolbar_"] [data-testid="stColumn"]:last-child label {
         flex-direction: row-reverse !important;
         gap: 0.4rem;
+    }
+
+    /* Dashboard city grid */
+    .dashboard-city h3 {
+        font-family: 'Playfair Display', Georgia, serif;
+        color: var(--navy);
+        font-size: 1.1rem;
+        margin: 0 0 0.5rem 0;
+        padding-bottom: 0.35rem;
+        border-bottom: 2px solid var(--gold);
+    }
+    .dashboard-city ul {
+        list-style: none;
+        padding: 0;
+        margin: 0 0 1.5rem 0;
+    }
+    .dashboard-city li {
+        margin: 0;
+        padding: 0;
+    }
+    /* Style restaurant buttons as text links inside dashboard */
+    [class*="st-key-dash_"] button {
+        background: none !important;
+        border: none !important;
+        box-shadow: none !important;
+        text-align: left !important;
+        padding: 0.25rem 0 !important;
+        min-height: 0 !important;
+        font-family: 'DM Sans', sans-serif !important;
+        font-size: 0.9rem !important;
+        color: var(--text-dark) !important;
+        width: 100% !important;
+        justify-content: flex-start !important;
+    }
+    [class*="st-key-dash_"] button:hover {
+        color: var(--gold) !important;
+        background: none !important;
+    }
+    [class*="st-key-dash_"] button p {
+        font-size: 0.9rem !important;
+    }
+    /* Back button */
+    [class*="st-key-back_btn"] button {
+        background: none !important;
+        border: none !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+        min-height: 0 !important;
+        font-family: 'DM Sans', sans-serif !important;
+        font-size: 0.85rem !important;
+        color: var(--text-muted) !important;
+    }
+    [class*="st-key-back_btn"] button:hover {
+        color: var(--gold) !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -538,27 +593,77 @@ def _estimate_tab_height(tab):
 saved_menus = db.list_menus()
 restaurant_names = [m['restaurant'] for m in saved_menus]
 
-# Build selectbox options
-UPLOAD_OPTION = "+ Upload New Menu"
-options = restaurant_names + [UPLOAD_OPTION] if restaurant_names else [UPLOAD_OPTION]
+# Two-state UI: dashboard (no selection) vs detail (restaurant selected)
+selected_restaurant = st.session_state.get("selected_restaurant")
 
-# Determine default selection (auto-select after upload, or first restaurant)
-default_idx = 0
-if "selected_restaurant" in st.session_state:
-    sel = st.session_state["selected_restaurant"]
-    if sel in options:
-        default_idx = options.index(sel)
+if (selected_restaurant
+        and selected_restaurant != "__upload__"
+        and selected_restaurant not in restaurant_names):
+    # Restaurant was deleted or doesn't exist — clear selection
+    selected_restaurant = None
+    st.session_state.pop("selected_restaurant", None)
 
-selected = st.selectbox(
-    "Select a restaurant",
-    options,
-    index=default_idx,
-    key="restaurant_selector",
-    label_visibility="collapsed",
-)
+if selected_restaurant is None:
+    # --- Dashboard view ---
+    # Group restaurants by city
+    city_groups = defaultdict(list)
+    for m in saved_menus:
+        city = get_city(m['restaurant'])
+        city_groups[city].append(m)
 
-if selected == UPLOAD_OPTION:
+    # Build ordered city list (CITY_ORDER first, then "Other" if any)
+    ordered_cities = [c for c in CITY_ORDER if c in city_groups]
+    if "Other" in city_groups:
+        ordered_cities.append("Other")
+
+    if ordered_cities:
+        # Distribute cities across 3 columns to balance height
+        # Estimate height per city: header + N restaurants
+        city_heights = []
+        for city in ordered_cities:
+            h = 1 + len(city_groups[city])  # header + items
+            city_heights.append((city, h))
+
+        # Greedy assignment to 3 columns (shortest column first)
+        col_assignments = [[] for _ in range(3)]
+        col_heights = [0] * 3
+        for city, h in city_heights:
+            shortest = col_heights.index(min(col_heights))
+            col_assignments[shortest].append(city)
+            col_heights[shortest] += h
+
+        cols = st.columns(3)
+        for col_idx, col in enumerate(cols):
+            with col:
+                for city in col_assignments[col_idx]:
+                    st.markdown(
+                        f'<div class="dashboard-city"><h3>{city}</h3></div>',
+                        unsafe_allow_html=True,
+                    )
+                    for m in city_groups[city]:
+                        name = m['restaurant']
+                        tab_count = m.get('tab_count') or 0
+                        tab_label = f"{name} ({tab_count})" if tab_count else name
+                        with st.container(key=f"dash_{name}"):
+                            if st.button(tab_label, key=f"go_{name}"):
+                                st.session_state["selected_restaurant"] = name
+                                st.rerun()
+
+    # Upload button at the bottom
+    st.markdown("---")
+    upload_col, _ = st.columns([1, 3])
+    with upload_col:
+        if st.button("+ Upload New Menu", type="primary", key="upload_btn"):
+            st.session_state["selected_restaurant"] = "__upload__"
+            st.rerun()
+
+elif selected_restaurant == "__upload__":
     # --- Upload view ---
+    with st.container(key="back_btn"):
+        if st.button("← All Restaurants", key="back_from_upload"):
+            st.session_state.pop("selected_restaurant", None)
+            st.rerun()
+
     uploaded_file = st.file_uploader(
         "Drop a .docx menu file here",
         type=["docx"],
@@ -569,8 +674,12 @@ if selected == UPLOAD_OPTION:
         _process_upload(uploaded_file.read(), uploaded_file.name, uploaded_file.file_id)
 
 else:
-    # --- Restaurant view ---
-    restaurant_name = selected
+    # --- Restaurant detail view ---
+    restaurant_name = selected_restaurant
+    with st.container(key="back_btn"):
+        if st.button("← All Restaurants", key="back_to_dash"):
+            st.session_state.pop("selected_restaurant", None)
+            st.rerun()
     menu_record = next(m for m in saved_menus if m['restaurant'] == restaurant_name)
     editing_key = f"editing_{restaurant_name}"
     restaurant_model = db.load_menu(restaurant_name)
