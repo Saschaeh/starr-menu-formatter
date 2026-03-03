@@ -229,12 +229,6 @@ st.markdown("""
         margin: 0 !important;
         line-height: 1.3 !important;
     }
-    [class*="st-key-r_"] button .r-date {
-        font-size: 0.72rem;
-        color: var(--text-muted);
-        font-weight: 400;
-        margin-left: 0.4rem;
-    }
     /* Back button */
     [class*="st-key-back_btn"] button {
         background: none !important;
@@ -679,12 +673,9 @@ if selected_restaurant is None:
                             name = m['restaurant']
                             dname = display_name(name)
                             date_str = _fmt_date(m.get('updated_at'))
-                            date_suffix = f' <span class="r-date">{date_str}</span>' if date_str else ''
+                            label = f"{dname}  ·  {date_str}" if date_str else dname
                             with st.container(key=f"r_{name}"):
-                                if st.button(
-                                    f"{dname}{date_suffix}",
-                                    key=f"go_{name}",
-                                ):
+                                if st.button(label, key=f"go_{name}"):
                                     st.session_state["selected_restaurant"] = name
                                     st.rerun()
 
