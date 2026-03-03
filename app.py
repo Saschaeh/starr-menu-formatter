@@ -2,14 +2,16 @@
 
 import copy
 import time
+import urllib.parse
 from collections import defaultdict
+from datetime import datetime
 
 import streamlit as st
 import streamlit.components.v1 as components
 
 from src.docx_parser import extract_text, filter_menu_content
 from src.models import Restaurant, Tab, Column, Section, MenuItem
-from src.restaurant_config import detect_restaurant, get_city, CITY_ORDER
+from src.restaurant_config import detect_restaurant, get_city, display_name, CITY_ORDER
 from src.llm_client import parse_menu, parse_live_menu
 from src.column_balancer import balance_menu
 from src.html_renderer import render_html
@@ -177,44 +179,53 @@ st.markdown("""
         gap: 0.4rem;
     }
 
-    /* Dashboard city grid */
-    .dashboard-city h3 {
-        font-family: 'Playfair Display', Georgia, serif;
-        color: var(--navy);
-        font-size: 1.1rem;
-        margin: 0 0 0.5rem 0;
-        padding-bottom: 0.35rem;
-        border-bottom: 2px solid var(--gold);
+    /* Dashboard grid */
+    .dash-grid {
+        font-family: 'DM Sans', sans-serif;
     }
-    .dashboard-city ul {
-        list-style: none;
-        padding: 0;
-        margin: 0 0 1.5rem 0;
-    }
-    .dashboard-city li {
-        margin: 0;
+    .dash-grid .city-label {
+        font-family: 'DM Sans', sans-serif;
+        font-size: 0.65rem;
+        font-weight: 600;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--text-muted);
+        margin: 0 0 0.3rem 0;
         padding: 0;
     }
-    /* Style restaurant buttons as text links inside dashboard */
-    [class*="st-key-dash_"] button {
-        background: none !important;
-        border: none !important;
-        box-shadow: none !important;
-        text-align: left !important;
-        padding: 0.25rem 0 !important;
-        min-height: 0 !important;
-        font-family: 'DM Sans', sans-serif !important;
-        font-size: 0.9rem !important;
-        color: var(--text-dark) !important;
-        width: 100% !important;
-        justify-content: flex-start !important;
+    .dash-grid .city-group {
+        margin-bottom: 1.2rem;
     }
-    [class*="st-key-dash_"] button:hover {
-        color: var(--gold) !important;
-        background: none !important;
+    .dash-grid .r-row {
+        display: flex;
+        align-items: baseline;
+        padding: 0.2rem 0;
+        cursor: pointer;
+        border-radius: 3px;
+        transition: background 0.1s;
     }
-    [class*="st-key-dash_"] button p {
-        font-size: 0.9rem !important;
+    .dash-grid .r-row:hover {
+        background: rgba(197, 165, 90, 0.08);
+    }
+    .dash-grid .r-name {
+        font-size: 0.88rem;
+        font-weight: 500;
+        color: var(--text-dark);
+    }
+    .dash-grid .r-row:hover .r-name {
+        color: var(--gold);
+    }
+    .dash-grid .r-date {
+        font-size: 0.72rem;
+        color: var(--text-muted);
+        margin-left: 0.5rem;
+        white-space: nowrap;
+    }
+    /* Upload bar above grid */
+    .dash-topbar {
+        display: flex;
+        justify-content: flex-end;
+        margin-bottom: 0.75rem;
     }
     /* Back button */
     [class*="st-key-back_btn"] button {
@@ -605,6 +616,23 @@ if (selected_restaurant
 
 if selected_restaurant is None:
     # --- Dashboard view ---
+    def _fmt_date(iso_str):
+        """Format an ISO date string as short date like 'Mar 1'."""
+        if not iso_str:
+            return ""
+        try:
+            dt = datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
+            return f"{dt.strftime('%b')} {dt.day}"
+        except Exception:
+            return ""
+
+    # Upload button top-right
+    _, btn_col = st.columns([5, 1])
+    with btn_col:
+        if st.button("+ Upload Menu", type="primary", key="upload_btn", use_container_width=True):
+            st.session_state["selected_restaurant"] = "__upload__"
+            st.rerun()
+
     # Group restaurants by city
     city_groups = defaultdict(list)
     for m in saved_menus:
@@ -618,13 +646,11 @@ if selected_restaurant is None:
 
     if ordered_cities:
         # Distribute cities across 3 columns to balance height
-        # Estimate height per city: header + N restaurants
         city_heights = []
         for city in ordered_cities:
-            h = 1 + len(city_groups[city])  # header + items
+            h = 1 + len(city_groups[city])
             city_heights.append((city, h))
 
-        # Greedy assignment to 3 columns (shortest column first)
         col_assignments = [[] for _ in range(3)]
         col_heights = [0] * 3
         for city, h in city_heights:
@@ -632,30 +658,40 @@ if selected_restaurant is None:
             col_assignments[shortest].append(city)
             col_heights[shortest] += h
 
+        # Handle click via query params
+        clicked = st.query_params.get("r")
+        if clicked and clicked in restaurant_names:
+            st.session_state["selected_restaurant"] = clicked
+            st.query_params.clear()
+            st.rerun()
+
         cols = st.columns(3)
         for col_idx, col in enumerate(cols):
             with col:
+                html_parts = ['<div class="dash-grid">']
                 for city in col_assignments[col_idx]:
-                    st.markdown(
-                        f'<div class="dashboard-city"><h3>{city}</h3></div>',
-                        unsafe_allow_html=True,
-                    )
+                    html_parts.append(f'<div class="city-group">')
+                    html_parts.append(f'<p class="city-label">{city}</p>')
                     for m in city_groups[city]:
                         name = m['restaurant']
-                        tab_count = m.get('tab_count') or 0
-                        tab_label = f"{name} ({tab_count})" if tab_count else name
-                        with st.container(key=f"dash_{name}"):
-                            if st.button(tab_label, key=f"go_{name}"):
-                                st.session_state["selected_restaurant"] = name
-                                st.rerun()
-
-    # Upload button at the bottom
-    st.markdown("---")
-    upload_col, _ = st.columns([1, 3])
-    with upload_col:
-        if st.button("+ Upload New Menu", type="primary", key="upload_btn"):
-            st.session_state["selected_restaurant"] = "__upload__"
-            st.rerun()
+                        dname = display_name(name)
+                        date_str = _fmt_date(m.get('updated_at'))
+                        date_html = f'<span class="r-date">{date_str}</span>' if date_str else ''
+                        # URL-encode the name for safe JS embedding
+                        name_encoded = urllib.parse.quote(name)
+                        html_parts.append(
+                            f'<div class="r-row" onclick="'
+                            f"const u=new URL(window.parent.location);"
+                            f"u.searchParams.set('r',decodeURIComponent('{name_encoded}'));"
+                            f"window.parent.location=u;"
+                            f'">'
+                            f'<span class="r-name">{dname}</span>'
+                            f'{date_html}'
+                            f'</div>'
+                        )
+                    html_parts.append('</div>')
+                html_parts.append('</div>')
+                st.markdown('\n'.join(html_parts), unsafe_allow_html=True)
 
 elif selected_restaurant == "__upload__":
     # --- Upload view ---

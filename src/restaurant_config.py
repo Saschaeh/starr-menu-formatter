@@ -107,6 +107,26 @@ def get_city(restaurant_name: str) -> str:
     return RESTAURANT_CITIES.get(restaurant_name.lower(), "Other")
 
 
+# Words that should stay uppercase in display names
+_UPPERCASE_WORDS = {"nyc", "dc", "pa", "lmno", "fl"}
+
+
+def display_name(restaurant_name: str) -> str:
+    """Convert a DB restaurant name to a clean display name.
+
+    Title-cases words, preserving acronyms like NYC/DC/PA/LMNO,
+    and cleaning up underscores.
+    """
+    name = restaurant_name.replace("_", " ").strip()
+    parts = []
+    for word in name.split():
+        if word.lower() in _UPPERCASE_WORDS:
+            parts.append(word.upper())
+        else:
+            parts.append(word.capitalize())
+    return " ".join(parts)
+
+
 def detect_restaurant(filename: str, text: str) -> RestaurantConfig:
     """Detect restaurant from filename or document content.
 
