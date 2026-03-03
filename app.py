@@ -96,38 +96,14 @@ st.markdown("""
         text-transform: uppercase;
         margin-top: 0.35rem;
     }
-    .starr-header .header-right {
-        position: absolute;
-        right: 2.5rem;
-        top: 0;
-        bottom: 0;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        align-items: flex-end;
-        gap: 0.4rem;
-    }
     .starr-header .branding {
         font-family: 'DM Sans', sans-serif;
         color: var(--gold);
         font-style: italic;
         font-size: 0.85rem;
-    }
-    .starr-header .upload-link {
-        font-family: 'DM Sans', sans-serif;
-        font-size: 0.8rem;
-        font-weight: 500;
-        color: var(--gold);
-        text-decoration: none;
-        border: 1px solid var(--gold);
-        padding: 0.3rem 1rem;
-        border-radius: 4px;
-        letter-spacing: 0.03em;
-        transition: background 0.15s, color 0.15s;
-    }
-    .starr-header .upload-link:hover {
-        background: var(--gold);
-        color: var(--navy);
+        position: absolute;
+        bottom: 1rem;
+        right: 2.5rem;
     }
 
     [data-testid="stFileUploader"] {
@@ -242,6 +218,18 @@ st.markdown("""
         color: var(--text-muted);
         white-space: nowrap;
     }
+    .dash-col .upload-link {
+        display: inline-block;
+        margin-top: 1rem;
+        font-family: 'DM Sans', sans-serif;
+        font-size: 0.85rem;
+        font-weight: 500;
+        color: var(--gold);
+        text-decoration: none;
+    }
+    .dash-col .upload-link:hover {
+        color: var(--navy);
+    }
     /* Back button */
     [class*="st-key-back_btn"] button {
         background: none !important;
@@ -266,10 +254,7 @@ st.markdown("""
         <h1>Starr Restaurants</h1>
         <div class="subtitle">Restaurant Website Content Tool</div>
     </div>
-    <div class="header-right">
-        <a class="upload-link" href="?r=__upload__">+ Upload Menu</a>
-        <div class="branding">Made{<i>Tooled</i>}</div>
-    </div>
+    <div class="branding">Made{<i>Tooled</i>}</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -683,7 +668,7 @@ if selected_restaurant is None:
                 with col:
                     html = ['<div class="dash-col">']
                     for city in col_assignments[col_idx]:
-                        html.append(f'<div class="city-group">')
+                        html.append('<div class="city-group">')
                         html.append(f'<p class="city-label">{city}</p>')
                         for m in city_groups[city]:
                             name = m['restaurant']
@@ -698,6 +683,9 @@ if selected_restaurant is None:
                                 f'</a>'
                             )
                         html.append('</div>')
+                    # Upload link at the bottom of the last column
+                    if col_idx == 2:
+                        html.append('<a class="upload-link" href="?r=__upload__">+ Upload New Menu</a>')
                     html.append('</div>')
                     st.markdown('\n'.join(html), unsafe_allow_html=True)
 
