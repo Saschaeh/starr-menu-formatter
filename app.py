@@ -76,8 +76,8 @@ st.markdown("""
         background: var(--navy);
         border-top: 3px solid var(--gold);
         border-bottom: 3px solid var(--gold);
-        padding: 2rem 2.5rem 1.5rem;
-        margin: -1rem -1rem 2rem -1rem;
+        padding: 1.5rem 2.5rem 1rem;
+        margin: -1rem -1rem 1rem -1rem;
         position: relative;
     }
     .starr-header h1 {
@@ -178,62 +178,42 @@ st.markdown("""
         gap: 0.4rem;
     }
 
-    /* Dashboard — tighter column gap */
-    /* Dashboard — tight columns */
-    [class*="st-key-dash_grid"] [data-testid="stHorizontalBlock"] {
-        gap: 1rem !important;
-    }
-    /* City label */
-    .city-label {
+    /* Dashboard grid */
+    .dash-col {
         font-family: 'DM Sans', sans-serif;
+    }
+    .dash-col .city-label {
         font-size: 0.65rem;
         font-weight: 600;
         letter-spacing: 0.12em;
         text-transform: uppercase;
         color: var(--text-muted);
-        margin: 0 0 0.1rem 0;
+        margin: 0 0 0.25rem 0;
         padding: 0;
     }
-    .city-group { margin-bottom: 0.8rem; }
-    /* Kill ALL spacing around dashboard buttons */
-    [class*="st-key-dash_grid"] .stButton {
-        margin: 0 !important;
-        padding: 0 !important;
+    .dash-col .city-group {
+        margin-bottom: 0.9rem;
     }
-    [class*="st-key-dash_grid"] .stButton > div {
-        margin: 0 !important;
-        padding: 0 !important;
+    .dash-col a.r-link {
+        display: flex;
+        align-items: baseline;
+        gap: 0.4rem;
+        text-decoration: none;
+        padding: 0.08rem 0;
+        line-height: 1.4;
     }
-    [class*="st-key-dash_grid"] button[kind="secondary"],
-    [class*="st-key-dash_grid"] button[data-testid="stBaseButton-secondary"] {
-        background: none !important;
-        border: none !important;
-        box-shadow: none !important;
-        outline: none !important;
-        text-decoration: none !important;
-        text-align: left !important;
-        padding: 0.15rem 0 !important;
-        min-height: 0 !important;
-        height: auto !important;
-        font-family: 'DM Sans', sans-serif !important;
-        font-size: 0.88rem !important;
-        font-weight: 500 !important;
-        color: var(--text-dark) !important;
-        width: auto !important;
-        justify-content: flex-start !important;
-        border-radius: 0 !important;
-        line-height: 1.3 !important;
+    .dash-col a.r-link:hover .r-name {
+        color: var(--gold);
     }
-    [class*="st-key-dash_grid"] button:hover {
-        color: var(--gold) !important;
-        background: none !important;
-        text-decoration: none !important;
+    .dash-col .r-name {
+        font-size: 0.85rem;
+        font-weight: 500;
+        color: var(--text-dark);
     }
-    [class*="st-key-dash_grid"] button p {
-        font-size: 0.88rem !important;
-        margin: 0 !important;
-        line-height: 1.3 !important;
-        text-decoration: none !important;
+    .dash-col .r-date {
+        font-size: 0.7rem;
+        color: var(--text-muted);
+        white-space: nowrap;
     }
     /* Back button */
     [class*="st-key-back_btn"] button {
@@ -624,6 +604,23 @@ if (selected_restaurant
 
 if selected_restaurant is None:
     # --- Dashboard view ---
+
+    def _fmt_date(iso_str):
+        if not iso_str:
+            return ""
+        try:
+            dt = datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
+            return f"{dt.strftime('%b')} {dt.day}"
+        except Exception:
+            return ""
+
+    # Check for click via query param
+    _clicked = st.query_params.get("r")
+    if _clicked and _clicked in restaurant_names:
+        st.session_state["selected_restaurant"] = _clicked
+        st.query_params.clear()
+        st.rerun()
+
     # Upload button top-right
     _, btn_col = st.columns([5, 1])
     with btn_col:
@@ -637,18 +634,13 @@ if selected_restaurant is None:
         city = get_city(m['restaurant'])
         city_groups[city].append(m)
 
-    # Build ordered city list (CITY_ORDER first, then "Other" if any)
     ordered_cities = [c for c in CITY_ORDER if c in city_groups]
     if "Other" in city_groups:
         ordered_cities.append("Other")
 
     if ordered_cities:
         # Distribute cities across 3 columns to balance height
-        city_heights = []
-        for city in ordered_cities:
-            h = 1 + len(city_groups[city])
-            city_heights.append((city, h))
-
+        city_heights = [(c, 1 + len(city_groups[c])) for c in ordered_cities]
         col_assignments = [[] for _ in range(3)]
         col_heights = [0] * 3
         for city, h in city_heights:
@@ -656,20 +648,30 @@ if selected_restaurant is None:
             col_assignments[shortest].append(city)
             col_heights[shortest] += h
 
-        with st.container(key="dash_grid"):
-            cols = st.columns(3)
-            for col_idx, col in enumerate(cols):
-                with col:
-                    for city in col_assignments[col_idx]:
-                        st.markdown(
-                            f'<div class="city-group"><p class="city-label">{city}</p></div>',
-                            unsafe_allow_html=True,
+        # Render each column as a single HTML block — no Streamlit widgets
+        import urllib.parse
+        cols = st.columns(3, gap="small")
+        for col_idx, col in enumerate(cols):
+            with col:
+                html = ['<div class="dash-col">']
+                for city in col_assignments[col_idx]:
+                    html.append(f'<div class="city-group">')
+                    html.append(f'<p class="city-label">{city}</p>')
+                    for m in city_groups[city]:
+                        name = m['restaurant']
+                        dname = display_name(name)
+                        href = f"?r={urllib.parse.quote(name)}"
+                        date_str = _fmt_date(m.get('updated_at'))
+                        date_part = f'<span class="r-date">{date_str}</span>' if date_str else ''
+                        html.append(
+                            f'<a class="r-link" href="{href}">'
+                            f'<span class="r-name">{dname}</span>'
+                            f'{date_part}'
+                            f'</a>'
                         )
-                        for m in city_groups[city]:
-                            name = m['restaurant']
-                            if st.button(display_name(name), key=f"go_{name}"):
-                                st.session_state["selected_restaurant"] = name
-                                st.rerun()
+                    html.append('</div>')
+                html.append('</div>')
+                st.markdown('\n'.join(html), unsafe_allow_html=True)
 
 elif selected_restaurant == "__upload__":
     # --- Upload view ---
