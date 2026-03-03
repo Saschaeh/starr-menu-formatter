@@ -256,7 +256,7 @@ st.markdown("""
 
     /* Detail page — restaurant header */
     .detail-header {
-        margin: 0.5rem 0 1.5rem 0;
+        margin: 0.5rem 0 0 0;
         padding-bottom: 1.25rem;
         border-bottom: 2px solid var(--gold);
     }
@@ -278,9 +278,10 @@ st.markdown("""
         margin-top: 0.3rem;
     }
 
-    /* Detail page — toolbar breathing room */
+    /* Detail page — toolbar flush under header gold line */
     [class*="st-key-toolbar_"] {
-        border-radius: 6px;
+        border-radius: 0 0 6px 6px;
+        margin-top: -1rem !important;
         margin-bottom: 1.25rem !important;
     }
 
