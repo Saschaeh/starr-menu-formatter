@@ -109,19 +109,25 @@ def get_city(restaurant_name: str) -> str:
 
 # Words that should stay uppercase in display names
 _UPPERCASE_WORDS = {"nyc", "dc", "pa", "lmno", "fl"}
+# Articles/prepositions that stay lowercase (unless first word)
+_LOWERCASE_WORDS = {"and", "of", "the", "in", "at", "by", "for", "or", "on", "to"}
 
 
 def display_name(restaurant_name: str) -> str:
     """Convert a DB restaurant name to a clean display name.
 
     Title-cases words, preserving acronyms like NYC/DC/PA/LMNO,
+    lowercasing articles/prepositions (except first word),
     and cleaning up underscores.
     """
     name = restaurant_name.replace("_", " ").strip()
     parts = []
-    for word in name.split():
-        if word.lower() in _UPPERCASE_WORDS:
+    for i, word in enumerate(name.split()):
+        lower = word.lower()
+        if lower in _UPPERCASE_WORDS:
             parts.append(word.upper())
+        elif i > 0 and lower in _LOWERCASE_WORDS:
+            parts.append(lower)
         else:
             parts.append(word.capitalize())
     return " ".join(parts)

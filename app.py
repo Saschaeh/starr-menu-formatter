@@ -96,14 +96,38 @@ st.markdown("""
         text-transform: uppercase;
         margin-top: 0.35rem;
     }
+    .starr-header .header-right {
+        position: absolute;
+        right: 2.5rem;
+        top: 0;
+        bottom: 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: flex-end;
+        gap: 0.4rem;
+    }
     .starr-header .branding {
         font-family: 'DM Sans', sans-serif;
         color: var(--gold);
         font-style: italic;
         font-size: 0.85rem;
-        position: absolute;
-        bottom: 1rem;
-        right: 2.5rem;
+    }
+    .starr-header .upload-link {
+        font-family: 'DM Sans', sans-serif;
+        font-size: 0.8rem;
+        font-weight: 500;
+        color: var(--gold);
+        text-decoration: none;
+        border: 1px solid var(--gold);
+        padding: 0.3rem 1rem;
+        border-radius: 4px;
+        letter-spacing: 0.03em;
+        transition: background 0.15s, color 0.15s;
+    }
+    .starr-header .upload-link:hover {
+        background: var(--gold);
+        color: var(--navy);
     }
 
     [data-testid="stFileUploader"] {
@@ -186,12 +210,12 @@ st.markdown("""
         font-family: 'DM Sans', sans-serif;
     }
     .dash-col .city-label {
-        font-size: 0.65rem;
+        font-size: 0.78rem;
         font-weight: 600;
-        letter-spacing: 0.12em;
+        letter-spacing: 0.1em;
         text-transform: uppercase;
-        color: var(--text-muted);
-        margin: 0 0 0.25rem 0;
+        color: var(--navy);
+        margin: 0 0 0.3rem 0;
         padding: 0;
     }
     .dash-col .city-group {
@@ -242,7 +266,10 @@ st.markdown("""
         <h1>Starr Restaurants</h1>
         <div class="subtitle">Restaurant Website Content Tool</div>
     </div>
-    <div class="branding">Made{<i>Tooled</i>}</div>
+    <div class="header-right">
+        <a class="upload-link" href="?r=__upload__">+ Upload Menu</a>
+        <div class="branding">Made{<i>Tooled</i>}</div>
+    </div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -619,16 +646,13 @@ if selected_restaurant is None:
 
     # Check for click via query param
     _clicked = st.query_params.get("r")
-    if _clicked and _clicked in restaurant_names:
-        st.session_state["selected_restaurant"] = _clicked
+    if _clicked:
         st.query_params.clear()
-        st.rerun()
-
-    # Upload button top-right
-    _, btn_col = st.columns([5, 1])
-    with btn_col:
-        if st.button("+ Upload Menu", type="primary", key="upload_btn", use_container_width=True):
+        if _clicked == "__upload__":
             st.session_state["selected_restaurant"] = "__upload__"
+            st.rerun()
+        elif _clicked in restaurant_names:
+            st.session_state["selected_restaurant"] = _clicked
             st.rerun()
 
     # Group restaurants by city
