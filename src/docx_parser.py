@@ -33,6 +33,48 @@ def _is_list_paragraph(para) -> bool:
     return (para.style.name if para.style else "") == "List Paragraph"
 
 
+def _extract_table_rows(tbl_element) -> list[str]:
+    """Convert a docx table XML element into text lines for LLM consumption.
+
+    Expects tables with columns: Item, Description, Price (header row skipped).
+    Each data row becomes: `Item Name  description  $price`
+    Raw items (ending with *) get the asterisk preserved.
+    """
+    from docx.table import Table as DocxTable
+
+    lines: list[str] = []
+    rows = tbl_element.findall(qn("w:tr"))
+    for r_idx, tr in enumerate(rows):
+        cells = tr.findall(qn("w:tc"))
+        cell_texts = []
+        for tc in cells:
+            t = "".join(node.text or "" for node in tc.iter(qn("w:t")))
+            cell_texts.append(t.strip())
+
+        # Skip header row (Item / Description / Price)
+        if r_idx == 0:
+            # Verify it looks like a header; if not, treat as data
+            if cell_texts and cell_texts[0].lower() in ("item", "name", "items"):
+                continue
+
+        # Build line: "Name  description  $price"
+        name = cell_texts[0] if len(cell_texts) > 0 else ""
+        desc = cell_texts[1] if len(cell_texts) > 1 else ""
+        price = cell_texts[2] if len(cell_texts) > 2 else ""
+
+        if not name:
+            continue
+
+        parts = [name]
+        if desc:
+            parts.append(desc)
+        if price:
+            parts.append(price)
+        lines.append("  ".join(parts))
+
+    return lines
+
+
 def extract_text(file_bytes: bytes) -> str:
     """Extract annotated text from a .docx file.
 
@@ -41,6 +83,10 @@ def extract_text(file_bytes: bytes) -> str:
     - ## Tab Name for H2 (or H3 if no H2s exist)
     - **Bold text** for bold runs
     - Regular text as-is
+    - Table rows as "Item Name  description  $price"
+
+    Walks the document body XML in order so paragraphs and tables
+    are interleaved correctly.
     """
     doc = Document(BytesIO(file_bytes))
 
@@ -48,37 +94,52 @@ def extract_text(file_bytes: bytes) -> str:
     has_h2 = any(_get_heading_level(p) == 2 for p in doc.paragraphs)
     tab_level = 2 if has_h2 else 3
 
+    # Build a lookup from paragraph XML element to python-docx Paragraph object
+    para_map = {p._element: p for p in doc.paragraphs}
+
     lines: list[str] = []
     in_menu_section = False
 
-    for para in doc.paragraphs:
-        text = para.text.strip()
-        if not text:
-            continue
+    # Walk body children in document order (paragraphs and tables interleaved)
+    for child in doc.element.body:
+        tag = child.tag.split("}")[-1]
 
-        # Normalize non-breaking spaces
-        text = text.replace("\xa0", " ")
+        if tag == "p":
+            para = para_map.get(child)
+            if para is None:
+                continue
+            text = para.text.strip()
+            if not text:
+                continue
 
-        heading = _get_heading_level(para)
-        if heading == 1:
-            if re.match(r"Menu Pages", text, re.IGNORECASE):
-                in_menu_section = True
-            lines.append(f"# {text}")
-            continue
-        if heading == tab_level:
-            lines.append(f"## {text}")
-            continue
+            # Normalize non-breaking spaces
+            text = text.replace("\xa0", " ")
 
-        # Skip list paragraphs only before "Menu Pages" heading (homepage meta-notes)
-        if _is_list_paragraph(para) and not in_menu_section:
-            continue
+            heading = _get_heading_level(para)
+            if heading == 1:
+                if re.match(r"Menu Pages", text, re.IGNORECASE):
+                    in_menu_section = True
+                lines.append(f"# {text}")
+                continue
+            if heading == tab_level:
+                lines.append(f"## {text}")
+                continue
 
-        # Check if the entire paragraph is bold via runs
-        runs_with_text = [r for r in para.runs if r.text.strip()]
-        if runs_with_text and all(_is_bold(r) for r in runs_with_text):
-            lines.append(f"**{text}**")
-        else:
-            lines.append(text)
+            # Skip list paragraphs only before "Menu Pages" heading
+            if _is_list_paragraph(para) and not in_menu_section:
+                continue
+
+            # Check if the entire paragraph is bold via runs
+            runs_with_text = [r for r in para.runs if r.text.strip()]
+            if runs_with_text and all(_is_bold(r) for r in runs_with_text):
+                lines.append(f"**{text}**")
+            else:
+                lines.append(text)
+
+        elif tag == "tbl":
+            # Extract table rows as menu item lines
+            table_lines = _extract_table_rows(child)
+            lines.extend(table_lines)
 
     return "\n".join(lines)
 
@@ -102,8 +163,16 @@ def filter_menu_content(text: str) -> str:
             break
 
     if menu_start is None:
-        # Fallback: try to find the first ## heading
+        # Fallback: find first tab or section heading (# Tab or ## Section)
+        # Prefer # tab heading if it appears before first ## section heading
         for i, line in enumerate(lines):
+            if line.startswith("# ") and not line.startswith("## "):
+                # Skip title-like headings (THE MENUS, MENU, etc.)
+                label = line[2:].strip().upper()
+                if label in ("THE MENUS", "MENU", "MENUS"):
+                    continue
+                menu_start = i
+                break
             if line.startswith("## "):
                 menu_start = i
                 break

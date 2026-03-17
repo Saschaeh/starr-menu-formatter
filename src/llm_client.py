@@ -47,10 +47,11 @@ Return ONLY valid JSON (no markdown, no code fences):
 - Remove "Page:" or "Page" suffix from labels: "Dinner Page:" → id: "dinner", label: "Dinner"
 
 ### Section Headings — CRITICAL
-- EVERY line wrapped in `**bold**` markers is a section heading. You MUST create a section for EACH one.
+- EVERY line wrapped in `**bold**` markers OR prefixed with `## ` is a section heading. You MUST create a section for EACH one.
 - This includes food sections AND beverage sections: **Cocktails**, **Sake**, **Wine**, **Beer**, **Spirits**, etc.
-- Do NOT skip or merge bold headings. Each `**bold**` line = one section in the output.
+- Do NOT skip or merge section headings. Each `**bold**` or `## ` line = one section in the output.
 - If a section has sub-categories (e.g. WHITE / ROSE / RED under Wine), include the sub-category as a tag on each item.
+- Lines like `— Column N —` indicate WordPress column boundaries. Ignore them — do NOT create sections for column markers.
 
 ### Menu Items
 Each item can appear in two formats:
@@ -182,14 +183,33 @@ Return ONLY valid JSON (no markdown, no code fences):
 
 
 def _split_into_tabs(text: str) -> list[tuple[str, str]]:
-    """Split filtered document text into (heading, content) per tab."""
+    """Split filtered document text into (heading, content) per tab.
+
+    Supports two document formats:
+    - Old format: ## headings are tabs, **bold** lines are sections
+    - New format: # headings are tabs, ## headings are sections
+      (detected when # headings appear in the filtered content)
+    """
     lines = text.split("\n")
+
+    # Detect format: if there are # headings in the filtered content,
+    # they represent tabs and ## headings are sections within them.
+    h1_tab_lines = [l for l in lines if re.match(r"^# \S", l)]
+    use_h1_tabs = len(h1_tab_lines) > 0
+
     tabs: list[tuple[str, str]] = []
     current_heading = None
     current_lines: list[str] = []
 
     for line in lines:
-        if line.startswith("## "):
+        is_tab_heading = False
+        if use_h1_tabs:
+            # H1 = tab boundary, but not H2 (## starts with # too)
+            is_tab_heading = line.startswith("# ") and not line.startswith("## ")
+        else:
+            is_tab_heading = line.startswith("## ")
+
+        if is_tab_heading:
             # Save previous tab
             if current_heading is not None:
                 tabs.append((current_heading, "\n".join(current_lines)))
@@ -203,10 +223,10 @@ def _split_into_tabs(text: str) -> list[tuple[str, str]]:
         tabs.append((current_heading, "\n".join(current_lines)))
 
     # Collect all tab labels for noise detection
+    tab_marker = "# " if use_h1_tabs else "## "
     tab_labels = set()
     for heading, _ in tabs:
-        label = heading.replace("## ", "").strip()
-        # Extract just the name part before "Page"
+        label = heading.replace(tab_marker, "", 1).strip()
         name = re.sub(r"\s*Page\s*:?\s*$", "", label, flags=re.IGNORECASE).strip()
         tab_labels.add(name.upper())
 
